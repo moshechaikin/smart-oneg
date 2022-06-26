@@ -18,7 +18,9 @@ async function run() {
         password: 'integration'
     };
 
-    let cmd = 'output,2,1,70';
+    let cmd = 'output,3,1,0';
+
+    let limitCounter = 0;
 
     try {
         await connection.connect(params);
@@ -27,13 +29,20 @@ async function run() {
         console.log(error)
     }
 
-    connection.on('data', function (data) {
+    connection.on('data', async function (data) {
         console.log("DATA: " + data);
+        if (data.includes('OUTPUT,2,1') && !data.includes('2,1,50')) {
+            if (limitCounter >= 1) {
+                return;
+            }
+            await connection.exec(`#output,2,1,50`);
+            limitCounter++;
+        }
     })
 
 
     await connection.exec(`#${cmd}`);
-    await connection.exec(`~output,2,1`);
+    await connection.exec(`~output,3,1`);
     // await connection.nextData().then(console.log);
 }
 
