@@ -1,0 +1,16 @@
+{
+  "name": "shabbos-yt-smart-home",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "Moshe Chaikin",
+  "license": "ISC",
+  "dependencies": {
+    "telnet-client": "^2.0.3"
+  }
+}
