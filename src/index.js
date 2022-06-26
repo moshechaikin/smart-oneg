@@ -18,6 +18,8 @@ async function run() {
         password: 'integration'
     };
 
+    let cmd = 'output,2,1,70';
+
     try {
         await connection.connect(params);
     } catch (error) {
@@ -30,8 +32,9 @@ async function run() {
     })
 
 
-    await connection.exec('#output,2,1,45');
-    await connection.nextData().then(console.log);
+    await connection.exec(`#${cmd}`);
+    await connection.exec(`~output,2,1`);
+    // await connection.nextData().then(console.log);
 }
 
 run()
