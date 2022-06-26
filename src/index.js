@@ -1,26 +1,37 @@
-const { Telnet } = require('telnet-client')
-const connection = new Telnet()
+'use strict';
 
-const params = {
-    host: '192.168.0.190',
-    port: 23,
-    shellPrompt: 'GNET>',
-    timeout: 1500,
-    username: 'lutron',
-    password: 'integration'
-}
+const { Telnet } = require('telnet-client');
 
-connection.connect(params)
-    .then(prompt => {
-        connection.exec('#output,2,1,100,2')
-            .then(res => {
-                connection.exec('?output,2,1')
-                console.log('promises result:', res)
-            })
-    }, error => {
-        console.log('promises reject:', error)
-    })
-    .catch(error => {
+process.on('unhandledRejection', error => {
+    throw error
+});
+
+async function run() {
+    let connection = new Telnet();
+
+    let params = {
+        host: '192.168.0.190',
+        port: 23,
+        shellPrompt: 'GNET>',
+        timeout: 2000,
+        username: 'lutron',
+        password: 'integration'
+    };
+
+    try {
+        await connection.connect(params);
+    } catch (error) {
         // handle the throw (timeout)
         console.log(error)
-    });
+    }
+
+    connection.on('data', function (data) {
+        console.log("DATA: " + data);
+    })
+
+
+    await connection.exec('#output,2,1,45');
+    await connection.nextData().then(console.log);
+}
+
+run()
