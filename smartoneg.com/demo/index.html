@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>SmartOneg Live Demo</title>
+  <meta name="description" content="Try SmartOneg in your browser, a fully interactive demo with no backend.">
+  <meta name="theme-color" content="#e0a63c">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/demo/app/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/demo/app/css/app.css">
+  <!-- zmanim + the timeline are computed in-browser; these are the only deps -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@hebcal/core": "https://esm.sh/@hebcal/core@6",
+      "luxon": "https://esm.sh/luxon@3"
+    }
+  }
+  </script>
+  <style>
+    #demo-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+      padding-top: env(safe-area-inset-top);
+      background: linear-gradient(90deg, #b45309, #d4881f);
+      color: #1c1917;
+    }
+    #demo-bar .row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .4rem .8rem; max-width: 72rem; margin: 0 auto; }
+    #demo-bar .msg { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #demo-bar .actions { display: flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+    #demo-bar button, #demo-bar a { font-size: 13px; font-weight: 700; color: #1c1917; }
+    /* Reset reads as a quiet link; Exit is the filled button (styles swapped) */
+    #demo-bar button { background: transparent; border: 0; padding: .22rem .3rem; cursor: pointer; text-decoration: underline; }
+    #demo-bar button:hover { color: #000; }
+    #demo-bar a { background: rgba(28,25,23,.18); border-radius: .5rem; padding: .22rem .7rem; text-decoration: none; white-space: nowrap; }
+    #demo-bar a:hover { background: rgba(28,25,23,.30); }
+    @media (max-width: 640px) { #demo-bar .msg, #demo-bar button, #demo-bar a { font-size: 12px } }
+
+    /* Keep the fixed banner from covering the app's own sticky bars: reserve its
+       height at the top and shift every top-anchored sticky element down by it.
+       --demo-bar-h is measured in JS (it includes the iOS safe-area). */
+    :root { --demo-bar-h: 40px; }
+    body { padding-top: var(--demo-bar-h); }
+    /* Compose the demo bar with the app's own sticky scene/test banner (--banner-h,
+       measured in app.js) so both are cleared, not just the demo bar. */
+    #app aside.top-0, #app header.top-0 { top: calc(var(--demo-bar-h) + var(--banner-h, 0px)) !important; }
+    #app aside.h-screen { height: calc(100vh - var(--demo-bar-h) - var(--banner-h, 0px)) !important; }
+    /* body reserves the fixed bar with padding-top, so the app's own 100vh
+       min-height must shrink by it, otherwise the page is always taller than
+       the viewport (an extra bar's-worth of scroll on every page). */
+    #app.min-h-screen { min-height: calc(100vh - var(--demo-bar-h)) !important; }
+    /* The app's own banners (away / test mode / scene preview / failover) are
+       sticky top-0, pin them just below the fixed demo bar, never under it. */
+    #app [data-banner] { top: var(--demo-bar-h) !important; }
+    .sticky-below-header { top: calc(env(safe-area-inset-top,0px) + 61px + var(--demo-bar-h)) !important; }
+    .sticky-below-editorbar { top: calc(env(safe-area-inset-top,0px) + 61px + 57px + var(--demo-bar-h)) !important; }
+    @media (min-width: 1024px) {
+      .sticky-below-header { top: var(--demo-bar-h) !important; }
+      .sticky-below-editorbar { top: calc(76px + var(--demo-bar-h)) !important; }
+      /* When the editor's save bar pins and shrinks, the app pulls the section
+         headers up to 60px; our !important override must follow suit or a gap
+         opens between the pinned bar and the first section on scroll. */
+      .is-editor-stuck .sticky-below-editorbar { top: calc(60px + var(--demo-bar-h)) !important; }
+    }
+    #demo-boot-error { display:none; position:fixed; inset:0; z-index:70; background:#0c0a09; color:#e7e5e4; padding:2rem; font-family:ui-sans-serif,system-ui,sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="demo-bar">
+    <div class="row">
+      <span class="msg"><b>Demo</b> (runs in your browser, no server)</span>
+      <span class="actions">
+        <button id="demo-reset" title="Reset the demo to its starting data">Reset</button>
+        <a href="/index.html">Exit&nbsp;→</a>
+      </span>
+    </div>
+  </div>
+
+  <div id="app" class="min-h-screen"></div>
+  <div id="toasts" class="fixed z-50 inset-x-0 flex flex-col items-center gap-2 pointer-events-none px-4"
+       style="top: calc(var(--demo-bar-h) + .4rem)"></div>
+  <div id="modal-root"></div>
+
+  <div id="demo-boot-error">
+    <h1 style="font-size:1.4rem;font-weight:700">Couldn't start the demo</h1>
+    <p style="margin-top:.5rem;color:#a8a29e">The demo needs to be served over http (it uses ES modules). If you opened this file directly, run a local server instead, e.g. <code>python3 -m http.server</code> inside the <code>smartoneg.com</code> folder, or view it on the deployed site.</p>
+  </div>
+
+  <script>
+    document.getElementById('demo-reset').addEventListener('click', () => {
+      localStorage.removeItem('smartoneg-demo-config-v1');
+      localStorage.removeItem('smartoneg-demo-levels-v1');
+      location.reload();
+    });
+    // measure the banner (its height includes the iOS safe-area) so the app's
+    // sticky bars can be offset by exactly its height
+    const demoBar = document.getElementById('demo-bar');
+    const setBarH = () => document.documentElement.style.setProperty('--demo-bar-h', `${demoBar.offsetHeight}px`);
+    setBarH(); addEventListener('resize', setBarH); setTimeout(setBarH, 200);
+    // if modules fail to load (e.g. opened via file://), show a helpful message
+    setTimeout(() => { if (!window.__DEMO_READY__) document.getElementById('demo-boot-error').style.display = 'block'; }, 4000);
+  </script>
+  <!-- the shim MUST run before the app so fetch is patched first -->
+  <script type="module" src="/demo/demo-boot.js"></script>
+  <script type="module" src="/demo/app/js/app.js"></script>
+</body>
+</html>

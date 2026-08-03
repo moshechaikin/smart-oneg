@@ -1,0 +1,14 @@
+{
+  "name": "SmartOneg",
+  "short_name": "SmartOneg",
+  "description": "The Ultimate Shabbos & Yom Tov Smart Home Automation App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1220",
+  "theme_color": "#e0a63c",
+  "icons": [
+    { "src": "/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

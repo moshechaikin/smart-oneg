@@ -1,0 +1,193 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. 1.2.0)"
+        required: true
+      notes:
+        description: "Release notes (markdown)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Normalize version
+        id: ver
+        run: |
+          V="${{ inputs.version }}"
+          V="${V#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version everywhere
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          npm version "$V" --no-git-tag-version
+          printf '// Single source of truth for the displayed app version (nav footer + About).\n// The release workflow rewrites this file; do not edit by hand.\nexport const APP_VERSION = '"'"'v%s'"'"';\n' "$V" > public/js/version.js
+          # the in-browser demo ships its own copy of the frontend, so keep its
+          # displayed version in lockstep (it's a verbatim copy of the file above)
+          cp public/js/version.js smartoneg.com/demo/app/js/version.js
+          # rebuild the whole demo snapshot from public/ + server/ so every release
+          # ships a demo that matches the app being released (build:demo copies the
+          # just-written version.js too, so this stays in lockstep)
+          npm run build:demo
+          # the static site (GitHub Pages) serves this; the app polls it to
+          # detect a newer release. Written with node so notes are JSON-safe.
+          V="$V" node -e '
+            const fs = require("fs");
+            const v = process.env.V;
+            const out = {
+              version: v,
+              url: "https://github.com/${{ github.repository }}/releases/tag/v" + v,
+              notes: (process.env.NOTES || "").trim(),
+            };
+            fs.writeFileSync("smartoneg.com/version.json", JSON.stringify(out, null, 2) + "\n");
+          '
+
+      - name: Commit and tag
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json public/js/version.js smartoneg.com/demo smartoneg.com/version.json
+          git commit -m "Release v$V"
+          git tag "v$V"
+          git push origin HEAD --tags
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Optional Docker Hub mirror — only when both secrets are present, so a
+      # repo without them still releases (GHCR-only) without failing here.
+      - name: Compose image tags
+        id: tags
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          {
+            echo "list<<EOF"
+            echo "ghcr.io/${{ github.repository }}:v$V"
+            if [[ "$V" != *-* ]]; then
+              echo "ghcr.io/${{ github.repository }}:latest"
+            fi
+            if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+              echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/smart-oneg:v$V"
+              if [[ "$V" != *-* ]]; then
+                echo "docker.io/${{ secrets.DOCKERHUB_USERNAME }}/smart-oneg:latest"
+              fi
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          if [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dockerhub=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.tags.outputs.dockerhub == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          NOTES_FILE=$(mktemp)
+          cat > "$NOTES_FILE" <<'NOTES_EOF'
+          ${{ inputs.notes }}
+          NOTES_EOF
+          RELEASE_ARGS=()
+          if [[ "$V" == *-* ]]; then
+            RELEASE_ARGS+=(--prerelease)
+          fi
+          # attach the repo's docker-compose.yml so the latest/download URL works
+          gh release create "v$V" docker-compose.yml \
+            --title "SmartOneg v$V" \
+            --notes-file "$NOTES_FILE" \
+            --target "$(git rev-parse HEAD)" \
+            "${RELEASE_ARGS[@]}"
+
+      # Optional Homebrew formula bump — only when the tap token secret exists,
+      # so releases run fine without it. Pre-releases skip the bump entirely.
+      # (secrets can't be read in a step `if:`, so gate on a computed flag.)
+      - name: Check Homebrew secret
+        id: brew
+        run: |
+          if [ -n "${{ secrets.HOMEBREW_TAP_TOKEN }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump Homebrew formula
+        if: steps.brew.outputs.enabled == 'true' && !contains(steps.ver.outputs.version, '-')
+        uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}   # PAT with repo scope on homebrew-tap
+          tap: moshechaikin/homebrew-tap
+          formula: smart-oneg
+          tag: v${{ steps.ver.outputs.version }}
+
+  # Publish the static site (smartoneg.com) after a release. The release commit
+  # is pushed with GITHUB_TOKEN, which by design does NOT trigger the separate
+  # Pages workflow (static.yml) — so without this, a release would bump the
+  # version in git but never redeploy the live site. This deploys main's latest
+  # (the freshly pushed release commit) so version.json + the demo update too.
+  deploy-site:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout the just-pushed release commit
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'smartoneg.com'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

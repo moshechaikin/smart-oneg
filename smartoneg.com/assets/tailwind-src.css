@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+/* Scan only the marketing pages (the app/demo ship their own compiled CSS). */
+@source "../index.html";
+@source "../404.html";
+@source "../docs/index.html";
+@source "../privacy/index.html";
+
+/* Candle-amber accent + system sans, mirroring the old inline CDN config.
+   Dark mode is v4's default (prefers-color-scheme), matching darkMode:'media'. */
+@theme {
+  --color-accent-50: #fdf6ec;
+  --color-accent-100: #fae9cf;
+  --color-accent-200: #f3d09a;
+  --color-accent-300: #ecb768;
+  --color-accent-400: #e0a63c;
+  --color-accent-500: #d4881f;
+  --color-accent-600: #b45309;
+  --color-accent-700: #92400e;
+  --color-accent-800: #78350f;
+  --color-accent-900: #633012;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}

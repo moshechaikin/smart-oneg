@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- maximum-scale=1 stops iOS Safari's auto-zoom on input focus; since iOS 10
+       Safari ignores it for user-initiated pinch zoom, so accessibility is kept -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>SmartOneg: Shabbos & Yom Tov Smart Home</title>
+  <meta name="description" content="The Ultimate Shabbos & Yom Tov Smart Home Automation App">
+  <meta name="theme-color" content="#e0a63c">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <!-- decode the app logo up front so the About modal / headers never flash it
+       in on first paint (Safari otherwise re-decodes it when the modal opens) -->
+  <link rel="preload" as="image" href="/icons/icon-512.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- the apple- variant is still required for iOS < 17.4 standalone mode -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="SmartOneg">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="/css/app.css">
+  <!-- Loading splash: painted on the very first byte (inline, no external CSS
+       dependency) so the PWA never shows a blank white screen while the JS
+       boots. Background matches the manifest's background_color and the iOS
+       launch screen (#0b1220) so it's seamless from launch → boot → app.
+       app.js removes #splash once the first render mounts. -->
+  <style>
+    /* The dark backdrop (#splash) shows INSTANTLY on every load — that's what
+       stops a blank/white flash before the JS boots, and what the iOS launch
+       image (see script below) hands off to seamlessly. The logo/spinner/name
+       live in .content, which starts invisible and only fades in after a
+       short delay (see the inline script) — so a fast load never shows them
+       popping in and immediately back out, which is the flash this was
+       written to fix. Installed-PWA cold launches skip the delay entirely
+       (the native launch image already showed the logo an instant ago). */
+    #splash{position:fixed;inset:0;z-index:9999;display:flex;
+      align-items:center;justify-content:center;background:#0b1220;
+      transition:opacity .35s ease;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+    #splash.hide{opacity:0;pointer-events:none;}
+    #splash .content{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;
+      opacity:0;transition:opacity .3s ease;}
+    #splash .content.show{opacity:1;}
+    #splash img{width:132px;height:132px;border-radius:29px;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+    #splash .nm{color:#f5f5f4;font-size:26px;font-weight:700;letter-spacing:-.02em;
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}
+    #splash .sp{width:26px;height:26px;border-radius:50%;border:3px solid rgba(224,166,60,.25);
+      border-top-color:#e0a63c;animation:splashSpin .8s linear infinite;}
+    #splash .content.show img{animation:splashPop .5s ease both;}
+    #splash .content.show .nm{animation:splashFade .6s ease .1s both;}
+    @keyframes splashPop{from{transform:scale(.86);opacity:0}to{transform:scale(1);opacity:1}}
+    @keyframes splashFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @keyframes splashSpin{to{transform:rotate(360deg)}}
+    @media (prefers-reduced-motion:reduce){#splash .content.show img,#splash .content.show .nm,#splash .sp{animation:none}}
+    /* NOTE: the month-calendar responsive rules (.cal-*) and the schedules
+       week-strip rules used to live here inline. They now live in the compiled
+       app.css (public/css/tailwind.css) so the browser demo — which uses its
+       own index.html and never saw these inline styles — picks them up too. */
+  </style>
+  <script>
+    // iOS launch image: before the WebView even parses this HTML, a standalone
+    // PWA shows its apple-touch-startup-image — and with none set, that's a
+    // black flash. Generate the startup images at RUNTIME sized to this exact
+    // device (canvas → data-URL <link> tags, portrait + landscape); iOS picks
+    // them up so the NEXT launch shows the branded screen instantly, which
+    // then hands off to the identical #splash below with no visible jump.
+    (function () {
+      var ua = navigator.userAgent;
+      var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (!isIOS) return;
+      var BG = '#0b1220';         // matches #splash + manifest background_color
+      var LOGO_CSS = 132;         // logo size in CSS px — same as #splash img
+      var RADIUS_RATIO = 29 / 132; // same rounded corners as #splash img
+      var RISE_CSS = 50;          // #splash centers logo+name+spinner as a column,
+                                  // putting the logo ~50px above center — match it
+      var img = new Image();
+      img.src = '/icons/icon-512.png'; // same-origin (canvas stays untainted), already preloaded
+      img.onload = function () {
+        var dpr = window.devicePixelRatio || 1;
+        var make = function (wCss, hCss) {
+          var c = document.createElement('canvas');
+          c.width = wCss * dpr; c.height = hCss * dpr;
+          var x = c.getContext('2d');
+          x.fillStyle = BG;
+          x.fillRect(0, 0, c.width, c.height);
+          var size = LOGO_CSS * dpr;
+          var left = (c.width - size) / 2;
+          var top = (c.height - size) / 2 - RISE_CSS * dpr;
+          var r = size * RADIUS_RATIO;
+          x.save();
+          x.beginPath();
+          if (x.roundRect) x.roundRect(left, top, size, size, r);
+          else { // manual rounded rect for older WebKit
+            x.moveTo(left + r, top);
+            x.arcTo(left + size, top, left + size, top + size, r);
+            x.arcTo(left + size, top + size, left, top + size, r);
+            x.arcTo(left, top + size, left, top, r);
+            x.arcTo(left, top, left + size, top, r);
+            x.closePath();
+          }
+          x.clip();
+          x.drawImage(img, left, top, size, size);
+          x.restore();
+          return c.toDataURL('image/png');
+        };
+        var add = function (href, orientation) {
+          var l = document.createElement('link');
+          l.rel = 'apple-touch-startup-image';
+          l.media = 'screen and (orientation: ' + orientation + ')';
+          l.href = href;
+          document.head.appendChild(l);
+        };
+        add(make(screen.width, screen.height), 'portrait');
+        add(make(screen.height, screen.width), 'landscape');
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div id="splash">
+    <div class="content">
+      <img src="/icons/icon-512.png" alt="SmartOneg" width="132" height="132" fetchpriority="high">
+      <div class="nm">SmartOneg</div>
+      <div class="sp" role="status" aria-label="Loading"></div>
+    </div>
+  </div>
+  <script>
+    // Reveal the splash's logo/spinner only after a short delay — a fast load
+    // (typical on desktop / a warm cache) would otherwise show them pop in and
+    // fade back out almost instantly, which reads as a flash, not a loading
+    // state. An installed PWA's cold launch is exempt: iOS already showed the
+    // logo an instant ago via the runtime launch image above, so revealing
+    // immediately here is the seamless continuation of that, not a flash.
+    (function () {
+      var content = document.querySelector('#splash .content');
+      var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+      var timer = null;
+      if (standalone) { content.classList.add('show'); }
+      else { timer = setTimeout(function () { content.classList.add('show'); }, 400); }
+      window.__hideBootSplash = function () {
+        clearTimeout(timer);
+        var s = document.getElementById('splash');
+        if (!s) return;
+        s.classList.add('hide');
+        setTimeout(function () { s.remove(); }, 400);
+      };
+    })();
+  </script>
+  <div id="app" class="min-h-screen"></div>
+  <!-- toasts: fixed top-center, below the iOS safe area -->
+  <div id="toasts" class="fixed z-50 inset-x-0 flex flex-col items-center gap-2 pointer-events-none px-4"
+       style="top: calc(env(safe-area-inset-top) + 1rem)"></div>
+  <div id="modal-root"></div>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

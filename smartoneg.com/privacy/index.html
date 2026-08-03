@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · SmartOneg</title>
+  <meta name="description" content="SmartOneg is fully self-hosted. It collects no data, has no accounts or analytics, and never phones home. Your information stays on your own device.">
+  <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="../favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="../assets/tailwind.css">
+  <style>
+    .prose h2 { font-size:1.5rem; font-weight:700; margin-top:2.25rem; margin-bottom:.6rem }
+    .prose p, .prose li { color:#44403c; line-height:1.75 }
+    .prose ul { list-style:disc; padding-left:1.3rem; margin:.6rem 0 }
+    .prose a { color:#b45309; text-decoration:underline }
+    .prose code { background:#f5f5f4; border:1px solid #e7e5e4; border-radius:.375rem; padding:.1rem .35rem; font-size:.85em; color:#92400e }
+    @media (prefers-color-scheme: dark) {
+      .prose p, .prose li { color:#d6d3d1 }
+      .prose a { color:#e0a63c }
+      .prose code { background:#1c1917; border-color:#292524; color:#f3d09a }
+    }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100 antialiased">
+  <header class="sticky top-0 z-40 backdrop-blur border-b border-stone-200 dark:border-white/5 bg-stone-50/80 dark:bg-stone-950/80">
+    <div class="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
+      <a href="../" class="flex items-center gap-2.5">
+        <img src="../assets/icon-512.png" alt="" class="w-8 h-8 ring-1 ring-stone-200 dark:ring-white/10" style="border-radius:22.37%">
+        <span class="font-bold tracking-tight">SmartOneg <span class="text-stone-500 font-normal">/ privacy</span></span>
+      </a>
+      <div class="flex items-center gap-2 text-base shrink-0">
+        <a href="../" class="hidden sm:inline px-3 py-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition">Home</a>
+        <a href="../docs/" class="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 ring-1 ring-stone-200 dark:ring-white/10 text-stone-800 dark:text-stone-100 font-medium whitespace-nowrap transition">Docs</a>
+        <a href="../demo/" class="px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-400 text-stone-950 font-semibold whitespace-nowrap transition">Live demo</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="prose max-w-3xl mx-auto px-5 py-10">
+    <h1 class="text-3xl sm:text-4xl font-extrabold mb-2">Privacy Policy</h1>
+    <p class="text-stone-400 mb-6">SmartOneg is software you run on your own hardware. There is nothing for us to collect.</p>
+
+    <div class="rounded-2xl border border-emerald-300/60 bg-emerald-50 dark:bg-emerald-500/10 dark:border-emerald-500/30 p-5 my-6">
+      <p class="!mt-0 !mb-0 font-semibold text-emerald-800 dark:text-emerald-200">In one sentence: SmartOneg collects <u>no</u> data about you, has no accounts, no analytics, and no tracking, and it <u>never phones home</u>. Everything stays on your own device.</p>
+    </div>
+
+    <h2>No data collection</h2>
+    <p>SmartOneg is <strong>fully self-hosted</strong>. You install it on your own server/computer, NAS, or Raspberry Pi, and it runs entirely on your own network. There is no SmartOneg cloud-based account to create, no SmartOneg server or cloud backend, and <strong>no telemetry, analytics, tracking, cookies-for-tracking, crash reporting, or usage statistics of any kind</strong>. The developer receives nothing about you, your home, your location, your schedules, or how you use the app - because there is no channel through which such information is sent.</p>
+
+    <h2>It does not phone home</h2>
+    <p>The app does not report to the developer or to any third party. <strong>It works with your internet connection completely disconnected.</strong> Its entire interface is served locally from the app itself, with no CDN, no external fonts, and no remote scripts.</p>
+    
+    <br><p>For full transparency, the only outbound network connections the app can make are <strong>optional and initiated by you</strong>:</p>
+    <ul>
+      <li><strong>Update check</strong>: about once a day the app fetches a small file at <code>smartoneg.com/version.json</code> to see whether a newer release exists. It is a plain read that sends <strong>no information about you or your instance</strong> (no identifiers, no usage data, just the request itself), it is best-effort, and the app is fully functional with it blocked. It exists only so the app can tell you an update is available. If you want <strong>zero automatic outbound requests of any kind</strong>, you can turn it off in <strong>Settings → System → Software updates</strong> (“Automatically check for updates”); the manual “Check now” button still works on demand.</li>
+      <li><strong>Notifications you set up</strong>: if you enable email, <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy</a>, or web push in Settings, those messages go through the accounts and services <strong>you</strong> configure (your own Gmail/SMTP, your own ntfy topic - can be <a href="https://docs.ntfy.sh/install/" target="_blank">self-hosted</a>, your browser's push service). Only what you enable is sent, and only to those services.</li>
+      <li><strong>Integrations you add</strong>: your smart-home connections (Lutron, Home Assistant, Hubitat, EnvisaLink, Matter) stay entirely on your local network. A few optional integrations talk to a vendor's cloud that <strong>you</strong> choose to connect (for example Ecobee's API); those exchanges are governed by that vendor's own privacy policy, not this one.</li>
+    </ul>
+
+    <h2>Where your data lives</h2>
+    <p>Everything the app stores (your login, location, schedules, scenes, device list, logs, and backups) is written only to a <code>./data</code> folder on your own machine. It never leaves your device except through an integration or notification channel you deliberately set up (above). You can inspect, back up, export, or delete this folder at any time; deleting it removes all of your data.</p>
+
+    <h2>Cookies</h2>
+    <p>The app sets a single <strong>session cookie</strong> so that once you log in, you stay logged in. It lives only between your browser and your own instance on your network, is not used for tracking, and is never sent to the developer or any third party.</p>
+
+    <h2>Your responsibility</h2>
+    <p>Because you host SmartOneg yourself and there is no operator on the other end, <strong>you</strong> are responsible for securing your own instance: choose a strong password, and if you expose the app beyond your home network put a proper access layer in front of it. See the <a href="../docs/#remote-access">documentation</a> for guidance.</p>
+
+    <p class="mt-10 text-stone-500 text-sm">Developed by <a href="https://github.com/moshechaikin/" target="_blank" rel="noopener">Moshe Chaikin</a> · Powered by <a href="https://github.com/hebcal/hebcal-es6" target="_blank" rel="noopener">Hebcal</a></p>
+  </main>
+</body>
+</html>

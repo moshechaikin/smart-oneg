@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Docs · SmartOneg</title>
+  <meta name="description" content="SmartOneg documentation: installation, features, configuration, and the full HTTP API reference.">
+  <!-- Open Graph / link previews (absolute URLs so crawlers can fetch the image) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SmartOneg">
+  <meta property="og:url" content="https://smartoneg.com/docs/">
+  <meta property="og:title" content="SmartOneg Docs">
+  <meta property="og:description" content="Installation, features, configuration, and the full HTTP API reference.">
+  <meta property="og:image" content="https://smartoneg.com/assets/og-image.jpg">
+  <meta property="og:image:secure_url" content="https://smartoneg.com/assets/og-image.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="SmartOneg — automate your lights for Shabbos and Yom Tov, computed from zmanim.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://smartoneg.com/assets/og-image.jpg">
+  <link rel="icon" href="../favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="../assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="../assets/tailwind.css">
+  <style>
+    .prose h2 { font-size:1.6rem; font-weight:700; margin-top:2.5rem; margin-bottom:.75rem; scroll-margin-top:5rem }
+    .prose h3 { font-size:1.15rem; font-weight:600; margin-top:1.6rem; margin-bottom:.4rem; scroll-margin-top:5rem }
+    /* light-first; dark values live in the prefers-color-scheme block below */
+    .prose p, .prose li { color:#44403c; line-height:1.7 }
+    .prose p { margin:.9rem 0 }
+    .prose ul { list-style:disc; padding-left:1.3rem; margin:.6rem 0 }
+    .prose ol { list-style:decimal; padding-left:1.3rem; margin:.6rem 0 }
+    .prose li { margin:.25rem 0 }
+    .prose code { background:#f5f5f4; border:1px solid #e7e5e4; border-radius:.375rem; padding:.1rem .35rem; font-size:.85em; color:#92400e }
+    /* code blocks stay a dark terminal in both modes */
+    .prose pre { background:#0c0a09; border:1px solid #292524; border-radius:.75rem; padding:1rem 1.15rem; overflow-x:auto; margin:.8rem 0; font-size:.85rem; line-height:1.6 }
+    .prose pre code { background:none; border:none; padding:0; color:#e7e5e4 }
+    .prose a { color:#b45309; text-decoration:underline }
+    .sidelink.active { color:#1c1917; background:rgba(212,136,31,.14); border-color:rgba(212,136,31,.45) }
+    /* whimsical hover on the Ballmer gif — desktop pointers only, so it doesn't
+       fire from a tap-and-hold on touch devices */
+    @media (hover:hover) and (pointer:fine) {
+      /* shadow + grow live on the outer (non-rotating) wrapper, so the shadow
+         stays a clean rounded shape instead of smearing as the inner img shakes */
+      .ballmer-gif { display:inline-block; position:relative; z-index:0; border-radius:.75rem; transition:transform .2s, box-shadow .2s; cursor:pointer }
+      .ballmer-gif img { display:block; transition:transform .1s }
+      .ballmer-gif:hover { transform:scale(1.4); box-shadow:0 0 22px rgba(0,0,0,.4); z-index:10 }
+      .ballmer-gif:hover img { animation:ballmer-shake .3s ease-in-out infinite }
+    }
+    @media (hover:hover) and (pointer:fine) and (prefers-color-scheme: dark) {
+      .ballmer-gif:hover { box-shadow:0 0 26px rgba(224,166,60,.75) }
+    }
+    @keyframes ballmer-shake {
+      0%, 100% { transform:rotate(0deg) }
+      20% { transform:rotate(-4deg) }
+      40% { transform:rotate(3deg) }
+      60% { transform:rotate(-3deg) }
+      80% { transform:rotate(4deg) }
+    }
+    /* display:block + overflow-x lets a wide table (nowrap API paths) scroll
+       on its own instead of pushing the whole page wide on a phone */
+    table { display:block; overflow-x:auto; max-width:100%; border-collapse:collapse; margin:.8rem 0; font-size:.9rem; -webkit-overflow-scrolling:touch }
+    th,td { text-align:left; padding:.5rem .7rem; border-bottom:1px solid #e7e5e4; vertical-align:top }
+    th { color:#78716c; font-weight:600 }
+    td code { white-space:nowrap }
+    /* Scrollbars: styled so dark mode never gets the plain white system
+       scrollbar. Code blocks (.prose pre) are ALWAYS a dark terminal
+       regardless of page theme, so theirs stays dark-styled in light mode too. */
+    ::-webkit-scrollbar { width:10px; height:10px }
+    ::-webkit-scrollbar-track { background:transparent }
+    ::-webkit-scrollbar-thumb { background:rgb(120 113 108 / .35); border-radius:6px; border:2px solid transparent; background-clip:content-box }
+    ::-webkit-scrollbar-thumb:hover { background:rgb(120 113 108 / .55) }
+    html { scrollbar-width:thin; scrollbar-color:rgb(120 113 108 / .35) transparent }
+    .prose pre { scrollbar-color:rgb(168 162 158 / .35) transparent }
+    .prose pre::-webkit-scrollbar-thumb { background:rgb(168 162 158 / .35) }
+    /* command blocks: room for the copy button + the button itself. The button
+       lives on a NON-scrolling wrapper (.code-wrap), not the <pre> itself, so it
+       stays pinned to the visible top-right while the code scrolls horizontally
+       underneath it (an opaque background hides any text that scrolls behind). */
+    .code-wrap { position:relative }
+    .prose pre { padding-right:3.4rem }
+    .copy-btn { position:absolute; top:.65rem; right:.65rem; display:inline-flex; align-items:center; gap:.3rem;
+      background:#1c1917; border:1px solid rgba(255,255,255,.14); color:#d6d3d1;
+      font-size:.72rem; font-weight:600; line-height:1; padding:.35rem .55rem; border-radius:.4rem;
+      cursor:pointer; transition:background .15s ease,color .15s ease,border-color .15s ease; }
+    .copy-btn svg { width:.85rem; height:.85rem }
+    .copy-btn .ci-check { color:#34d399 }
+    .copy-btn:hover { background:#292524; color:#fff }
+    .copy-btn.copied { background:rgba(212,136,31,.22); color:#e0a63c; border-color:rgba(212,136,31,.4) }
+    @media (prefers-color-scheme: dark) {
+      .prose p, .prose li { color:#d6d3d1 }
+      .prose code { background:#1c1917; border-color:#292524; color:#f3d09a }
+      .prose a { color:#e0a63c }
+      .sidelink.active { color:#fff; background:rgba(212,136,31,.12); border-color:rgba(212,136,31,.4) }
+      th,td { border-bottom-color:#292524 }
+      th { color:#a8a29e }
+      ::-webkit-scrollbar-thumb { background:rgb(168 162 158 / .3) }
+      ::-webkit-scrollbar-thumb:hover { background:rgb(168 162 158 / .5) }
+      html { scrollbar-color:rgb(168 162 158 / .3) transparent }
+    }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100 antialiased">
+  <header class="sticky top-0 z-40 backdrop-blur border-b border-stone-200 dark:border-white/5 bg-stone-50/80 dark:bg-stone-950/80">
+    <div class="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
+      <a href="../" class="flex items-center gap-2.5">
+        <img src="../assets/icon-512.png" alt="" class="w-8 h-8 ring-1 ring-stone-200 dark:ring-white/10" style="border-radius:22.37%">
+        <span class="font-bold tracking-tight">SmartOneg <span class="text-stone-500 font-normal">/ docs</span></span>
+      </a>
+      <div class="flex items-center gap-2 text-base">
+        <button id="menu-btn" class="lg:hidden inline-flex items-center justify-center w-10 h-10 -ml-1 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-white/10 transition" aria-label="Open documentation menu">
+          <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <a href="../" class="hidden sm:inline px-3 py-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition">Home</a>
+        <a href="https://github.com/moshechaikin/smart-oneg" class="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 ring-1 ring-white/10 text-stone-100 font-medium transition" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor"><path d="M12 2A10 10 0 0 0 8.84 21.5c.5.08.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.9.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.5 9.5 0 0 1 12 6.8c.85 0 1.7.11 2.5.34 1.9-1.3 2.74-1.03 2.74-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.57.67.48A10 10 0 0 0 12 2z"/></svg>
+          GitHub
+        </a>
+        <a href="../demo/" class="px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-400 text-stone-950 font-semibold transition">Live demo</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- mobile documentation menu (mirrors the sidebar) -->
+  <div id="mobile-nav" class="fixed inset-0 z-50 lg:hidden hidden">
+    <div id="mobile-nav-backdrop" class="absolute inset-0 bg-stone-950/50"></div>
+    <div class="absolute top-0 left-0 h-full w-72 max-w-[82%] bg-stone-50 dark:bg-stone-900 shadow-2xl overflow-y-auto p-5">
+      <div class="flex items-center justify-between mb-4">
+        <span class="font-bold tracking-tight">Documentation</span>
+        <button id="menu-close" class="w-9 h-9 inline-flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200/60 dark:hover:bg-white/10 transition" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <nav id="mobile-nav-links" class="space-y-1 text-sm"></nav>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-5 flex gap-10">
+    <!-- sidebar -->
+    <aside class="hidden lg:block w-60 shrink-0 sticky top-16 self-start h-[calc(100vh-4rem)] overflow-y-auto py-8">
+      <nav class="space-y-1 text-sm" id="side">
+        <div class="text-xs uppercase tracking-wide text-stone-500 px-3 mb-1">Getting started</div>
+        <a href="#installation" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Installation (Docker)</a>
+        <a href="#homebrew" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">macOS (Homebrew)</a>
+        <a href="#no-docker" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Linux (pm2)</a>
+        <a href="#privacy" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Privacy &amp; local-first</a>
+        <a href="#updating" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Updating &amp; backups</a>
+        <a href="#failover" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Backup instance</a>
+        <a href="#remote-access" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Remote access</a>
+        <a href="#password-reset" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Password reset</a>
+        <div class="text-xs uppercase tracking-wide text-stone-500 px-3 mb-1 mt-5">Usage</div>
+        <a href="#devices" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Devices &amp; bridges</a>
+        <a href="#alarm" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Alarm (EnvisaLink)</a>
+        <a href="#schedules" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Schedules &amp; rules</a>
+        <a href="#situations" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Situations &amp; inheritance</a>
+        <a href="#child-lock" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Child Lock</a>
+        <a href="#scenes-guest" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Scenes, guest, away &amp; test mode</a>
+        <a href="#guarding" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Guarding automations</a>
+        <a href="#shortcuts" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Keyboard shortcuts</a>
+        <div class="text-xs uppercase tracking-wide text-stone-500 px-3 mb-1 mt-5">Reference</div>
+        <a href="#api" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">HTTP API</a>
+        <a href="#from-source" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">From source (dev)</a>
+      </nav>
+    </aside>
+
+    <!-- content -->
+    <main class="prose min-w-0 flex-1 py-8 max-w-3xl">
+      <h1 class="text-3xl sm:text-4xl font-extrabold mb-2">SmartOneg documentation</h1>
+      <p class="text-stone-400">Everything to install, configure, and integrate SmartOneg.</p>
+
+      <h2 id="installation">Installation (Docker)</h2>
+      <p>Docker is the recommended install on every platform. On <strong>macOS</strong> I recommend <a href="https://orbstack.dev" target="_blank" rel="noopener">OrbStack</a> (a lighter, faster drop-in for Docker Desktop); on <strong>Windows</strong> use <a href="https://www.docker.com/products/docker-desktop/" target="_blank" rel="noopener">Docker Desktop</a>; on <strong>Linux</strong>, Docker Engine. Then:</p>
+      <pre><code>mkdir smart-oneg &amp;&amp; cd smart-oneg</code></pre>
+      <pre><code>wget -O docker-compose.yml https://github.com/moshechaikin/smart-oneg/releases/latest/download/docker-compose.yml</code></pre>
+      <pre><code>docker compose up -d</code></pre>
+      <p>Open <code>http://&lt;host&gt;:1836</code> and follow the setup wizard. The image is multi-arch (amd64 + arm64), so it runs on a PC, a Mac, or a Raspberry Pi 3+/4/5. Prefer no Docker? Use <a href="#homebrew">macOS (Homebrew)</a> or <a href="#no-docker">Linux (pm2)</a>.</p>
+      <h3>Fixing data-folder permissions</h3>
+      <p>The container runs as a non-root user (<code>uid 1000</code>), so the host <code>./data</code> folder must be writable by that user. If the app logs something like <em>“no config found”</em> that never persists, or you see permission errors, fix ownership on the host (run these from the folder that holds your compose file, or point them at wherever your <code>./data</code> lives):</p>
+      <pre><code>sudo chown -R 1000:1000 ./data
+sudo chmod -R u+rwX,g+rwX ./data</code></pre>
+      <p>The same two commands apply anywhere (just point them at your <code>./data</code> folder). <code>u+rwX,g+rwX</code> grants read/write, and the capital <code>X</code> adds “enter” permission only to directories, not files.</p>
+
+      <h3>Opening firewall ports</h3>
+      <p>SmartOneg has to reach your bridges/devices <strong>on your LAN</strong> (Lutron on port 23, EnvisaLink on 4025, Home Assistant/Hubitat on their web ports, etc.). If you run a host firewall, a blocked port means the container can connect to nothing and every bridge shows offline. Make sure:</p>
+      <ul>
+        <li>The app's own port <strong>1836</strong> is allowed inbound so you can reach the UI.</li>
+        <li><strong>Outbound</strong> traffic from the container to your bridge/device IPs and their ports is permitted (Lutron 23, EnvisaLink 4025, HA 8123, Hubitat 80, etc.).</li>
+        <li>The container is on a network that can actually see those devices. If bridges are unreachable even with the firewall open, run the container with <code>network_mode: host</code>.</li>
+      </ul>
+
+      <h2 id="homebrew">macOS (Homebrew)</h2>
+      <p>Prefer not to run Docker on your Mac? Install SmartOneg natively with <a href="https://brew.sh" target="_blank" rel="noopener">Homebrew</a>. It runs as a background service (launchd) that starts at login:</p>
+      <pre><code>brew install moshechaikin/tap/smart-oneg
+brew services start smart-oneg</code></pre>
+      <p>Open <code>http://localhost:1836</code> and follow the setup wizard.</p>
+      <p>Update with <code>brew upgrade smart-oneg</code>. Your data (config, schedules, backups) lives in <code>$(brew --prefix)/var/smart-oneg</code> and is preserved across upgrades.</p>
+      <h3>Keep the Mac awake (so it stays a server)</h3>
+      <p>Homebrew keeps the <em>app</em> alive, but macOS will still <strong>sleep</strong> and stop serving. For an always-on Mac:</p>
+      <ul>
+        <li><strong>System Settings → Energy</strong> (desktops) / <strong>Battery → Options</strong> (laptops): turn on <strong>Prevent automatic sleeping when the display is off</strong> and <strong>Start up automatically after a power failure</strong>.</li>
+        <li><strong>Survive an unattended reboot:</strong> the service starts at <em>login</em>, so enable <strong>auto-login</strong>, System Settings → <strong>Users &amp; Groups</strong> → <strong>Automatically log in as</strong> → your user. (Tradeoff: physical access boots straight into your session, fine for a locked-away home server, not a laptop you carry. FileVault disables auto-login, so leave it off on a dedicated always-on Mac if you rely on this.)</li>
+      </ul>
+
+      <h2 id="no-docker">Linux without Docker (pm2)</h2>
+      <p>On Linux (Raspberry Pi OS, Debian, Ubuntu…) Docker is still recommended (see <a href="#installation">Installation (Docker)</a> above), but it isn't required. SmartOneg is a plain Node.js app with <strong>no build step</strong> (the UI ships prebuilt) and <strong>pure-JavaScript runtime dependencies</strong> (nothing to compile), so you can run it straight from source and keep it alive with <a href="https://pm2.keymetrics.io/" target="_blank" rel="noopener">pm2</a>, a tiny process manager that restarts the app on crash and at boot.</p>
+      <div class="rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-4 my-3">
+        <p class="!mt-0"><strong>Raspberry Pi.</strong> A <strong>Pi Zero 2 W</strong> (arm64, ~$15, once RAM prices come back from Mars and land back on Earth) or a Pi 3/4/5 is the easy target, install the normal <strong>Node 22</strong> below and follow the steps; the Zero 2 W runs SmartOneg comfortably (idle ≈ 110&nbsp;MB RAM).</p>
+      </div>
+      <h3>1. Install Node + pm2</h3>
+      <p>Install <strong>Node 22</strong> (via your distro, <a href="https://github.com/nvm-sh/nvm" target="_blank" rel="noopener">nvm</a>, or <a href="https://github.com/nodesource/distributions" target="_blank" rel="noopener">NodeSource</a>), then pm2:</p>
+      <pre><code>node -v            # must be v22 or newer
+npm install -g pm2</code></pre>
+      <h3>2. Get the code and start it</h3>
+      <pre><code>git clone https://github.com/moshechaikin/smart-oneg.git
+cd smart-oneg
+npm ci --omit=dev                       # runtime deps only
+pm2 start server/index.js --name smart-oneg
+pm2 save                                # remember this process list
+pm2 startup                             # prints one sudo command, run it to start on boot</code></pre>
+      <p>Open <code>http://&lt;host&gt;:1836</code> and follow the setup wizard. Your data lives in <code>./data</code> inside the clone (git never touches it, it's ignored), exactly like the Docker <code>./data</code> volume. Set a different port with <code>PORT</code> if needed (<code>pm2 start server/index.js --name smart-oneg --update-env</code> after <code>export PORT=8080</code>).</p>
+      <p>pm2 handles the "auto-restart if it crashes" part; <code>pm2 logs smart-oneg</code> tails the output, <code>pm2 restart smart-oneg</code> restarts it.</p>
+      <div class="rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 p-4 my-3">
+        <p class="!mt-0"><strong>Keep it powered, a UPS is recommended.</strong> SmartOneg only automates while it's running, so plug whatever it runs on into a small <strong>UPS (uninterruptible power supply, a battery backup)</strong>. The controller draws very little, so even an inexpensive UPS rides out a power flicker or a short outage, and your Shabbos/Yom Tov schedule keeps firing instead of going dark mid-Oneg. Pair it with your host's <strong>auto power-on after an outage</strong>, macOS: <em>Start up automatically after a power failure</em>; a PC / mini-PC: the BIOS <em>Restore on AC Power Loss</em> setting; a Raspberry Pi powers on by itself when power returns. On boot, SmartOneg automatically re-applies the state your schedule says should be active, so it recovers even from an outage that outlasts the battery.</p>
+      </div>
+
+      <h2 id="privacy">Privacy &amp; local-first</h2>
+      <p>SmartOneg runs entirely on your own network, with no account, no cloud backend, and no telemetry or analytics of any kind. Read the full <a href="../privacy/">Privacy Policy</a> for details.</p>
+
+      <h2 id="updating">Updating &amp; backups</h2>
+      <p>Because all data is in the <code>./data</code> volume, updating the image never touches your config. SmartOneg checks <code>smartoneg.com/version.json</code> about once a day and shows a dot on the <strong>About</strong> button plus a card in <strong>Settings → System → Software updates</strong> when a newer release exists, with the release notes and version numbers. If you'd rather the app never reach out on its own, toggle <strong>“Automatically check for updates”</strong> off there, that stops all automatic outbound requests; the manual <strong>Check now</strong> button still works.</p>
+      <h3>One-click update from the app</h3>
+      <p>The default compose file mounts the Docker socket, so the <strong>Update</strong> button in Settings can pull the new image and restart the app for you (it launches a one-shot <a href="https://github.com/nicholas-fedor/watchtower" target="_blank" rel="noopener">Watchtower</a> against just the SmartOneg container; your <code>./data</code> is untouched). The app runs as a non-root user, so it needs the host's <code>docker</code> group to use the socket, if the button reports it “could not start,” find the gid with <code>getent group docker</code> (often <code>999</code> on Linux) and add it under <code>group_add</code> in the compose file. Docker Desktop on Mac/Windows usually needs nothing.</p>
+      <div class="rounded-xl border border-rose-300/60 bg-rose-50 dark:bg-rose-500/10 dark:border-rose-500/30 p-4 my-3">
+        <p class="!mt-0"><strong>Security: the Docker socket is root-equivalent access to the host.</strong> Anything that can reach it can take over the machine. That's an acceptable trade on a <strong>private home LAN</strong>, which is what SmartOneg is designed for. But if you <strong>expose the app to the internet</strong> (a port-forward or public tunnel), you should either <strong>remove the <code>/var/run/docker.sock</code> line</strong> from the compose file, updates then fall back to a copy-paste command, and nothing else is lost, <strong>and/or put a real access layer in front of the app</strong>: <a href="https://www.cloudflare.com/products/zero-trust/access/" target="_blank" rel="noopener">Cloudflare Access</a>, a <a href="https://tailscale.com/" target="_blank" rel="noopener">Tailscale</a>/WireGuard VPN, or an authenticating reverse proxy, rather than relying only on SmartOneg's own login, which is also why SmartOneg doesn't offer 2FA itself, a proper access layer covers that need instead.</p>
+      </div>
+      <h3>Updating manually</h3>
+      <p>You can always update from the host instead (this is the fallback when the socket isn't mounted):</p>
+      <pre><code>docker compose pull &amp;&amp; docker compose up -d</code></pre>
+      <p>For fully hands-off updates, uncomment the <a href="https://github.com/nicholas-fedor/watchtower" target="_blank" rel="noopener">Watchtower</a> service in the compose file, it pulls new releases automatically on a schedule. Releases are never pushed during Shabbos or Yom Tov, so this won't restart the app mid-Oneg, but since it updates unattended, it's worth checking in on it after you set it up to make sure everything still comes up cleanly (no breaking changes are expected any time soon, but it's still worth a look).</p>
+      <p>SmartOneg also writes a <strong>nightly on-disk backup</strong> of your entire config (the last 14 days are kept), and Settings → Backup &amp; Restore lets you export, import, download any snapshot, or restore one with a click.</p>
+
+      <h2 id="failover">Backup instance (failover)</h2>
+      <p>Run a second copy of SmartOneg on another device (a spare Raspberry Pi is ideal) and choose <strong>Standby</strong> in its setup wizard, pointing it at your main instance. It keeps an up-to-date copy of all your settings and quietly watches the main instance. If the main one ever goes down, the standby takes over your lights on its own, then hands control back once the main instance is healthy again. </p>
+
+      <h2 id="remote-access">Remote access &amp; notifications</h2>
+      <p>To reach the app away from home and enable web push (especially iOS PWA push, which requires HTTPS), expose it over
+        <a href="https://tailscale.com/" target="_blank" rel="noopener"><strong>Tailscale</strong></a>
+        <a href="https://tailscale.com/docs/features/tailscale-funnel" target="_blank" rel="noopener">(or <strong>Tailscale Funnel</strong>)</a>,
+        <a href="https://tailscale.com/docs/features/tailscale-serve" target="_blank" rel="noopener"><strong>Tailscale Serve</strong></a> for HTTPS within your tailnet only, or
+        <a href="https://developers.cloudflare.com/tunnel/" target="_blank" rel="noopener"><strong>Cloudflare Tunnel</strong></a>, both terminate HTTPS. Then install it as a PWA (Add to Home Screen) and enable push from Settings → Notifications. Email and <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy</a> work regardless of HTTPS.</p>
+      <p><strong>If you expose it to the public internet</strong> (a Funnel or Tunnel anyone can reach): the app's login has rate limiting, timing-safe checks and hardened sessions, but an identity-aware layer in front is still stronger, <a href="https://developers.cloudflare.com/cloudflare-one/applications/" target="_blank" rel="noopener">Cloudflare Access</a> or plain Tailscale (private tailnet, no Funnel) means strangers never reach the login page at all. Note that behind a shared tunnel, heavy failed-login spam from strangers can temporarily rate-limit remote logins for everyone (LAN logins are unaffected, each LAN device gets its own limit bucket).</p>
+
+      <h2 id="password-reset">Password reset (locked out)</h2>
+      <p>Forgot the password (or someone changed it)? Reset it from the machine the app runs on:</p>
+      <pre><code>docker compose exec smart-oneg npm run reset-password -- you@email.com 'new-password'
+docker compose restart smart-oneg</code></pre>
+      <p>Append <code>--clear-sessions</code> to the end of the <code>reset-password</code> command above (i.e. <code>npm run reset-password -- you@email.com 'new-password' --clear-sessions</code>, still followed by the <code>docker compose restart</code> line) to also log out every signed-in device (do this if you suspect the old password was compromised). Running without Docker: <code>DATA_DIR=./data npm run reset-password -- you@email.com 'new-password'</code> from the app folder, then restart the app. If you run a backup instance, the new credentials mirror to it automatically within seconds.</p>
+
+      <h2 id="devices">Devices &amp; bridges</h2>
+      <p>Add devices from the Devices page (“Add devices”). Supported sources:</p>
+      <table>
+        <tr><th>Source</th><th>How</th><th>Child Lock</th></tr>
+        <tr><td>Lutron Caseta</td><td>Import the integration report</td><td>Push (instant)</td></tr>
+        <tr><td>Home Assistant</td><td>Long-lived token; REST + websocket</td><td>Push (instant)</td></tr>
+        <tr><td>Homebridge</td><td>config-ui-x API (insecure mode <code>-I</code>)</td><td>Polled (a few seconds)</td></tr>
+        <tr><td>Hubitat</td><td>Maker API app id + token</td><td>Webhook or polled</td></tr>
+        <tr><td>Matter</td><td>Pairing code (experimental)</td><td>Push (subscriptions)</td></tr>
+        <tr><td>Ecobee</td><td>PIN authorization (cloud)</td><td>n/a (thermostat)</td></tr>
+        <tr><td>EnvisaLink alarm</td><td>Local TPI (port 4025); DSC panel</td><td>n/a (arm/bypass)</td></tr>
+      </table>
+      <p><strong>Home Assistant automations, scripts &amp; scenes:</strong> beyond ordinary entities (lights, switches, thermostats…), any <code>automation.*</code>, <code>script.*</code>, or <code>scene.*</code> in HA imports too, as a momentary <strong>“Run”</strong> device (they land in their own <strong>Automations</strong> area on the Devices page by default). Setting one <em>on</em> in a rule or scene fires it (triggers the automation / runs the script / activates the scene); <em>off</em> is a deliberate no-op, since turning an automation off in HA would disable it, not just stop running it. This is also the way to bring in <strong>any other alarm/security system</strong> you've already got arming, disarming, or bypass wired up as an HA automation, see <a href="#alarm">Alarm systems</a>.</p>
+      <p><strong>Device types:</strong> each device can be a light, dimmer, smart plug/outlet, fan, shade/blind, thermostat (with °C/°F display and preset/heat/cool modes), a smart lock, a robot vacuum, a fridge whose Sabbath mode is exposed as a switch, or an alarm partition / bypass zone (see below). When you import, assign each device to one of your existing rooms so everything stays organized, and double-check its type is set correctly, a dimmer imported as a plain light (or vice versa) won't offer the right controls (brightness levels, etc.).</p>
+      <p><strong>A note on smart locks:</strong> a lock is meant to be used the same way lights are, as a <em>scheduled</em> action you set up before Shabbos or Yom Tov, for example auto-locking the front door at a set time Friday night. Operating a lock by hand during the day itself (a keypad, an app, or the manual Lock/Unlock button here) directly runs an electronic device, so the value is the timer-style automation, not tapping Lock or Unlock on Shabbos. A lock is also a security device, so lean toward scheduled auto-<em>locking</em> rather than auto-unlocking while you are asleep or away.</p>
+
+      <h3>Lutron Caseta</h3>
+      <p>Lutron's <strong>Caseta</strong> lineup, switches, dimmers, plug-in modules, and Pico remotes, connects through the Smart Bridge PRO (<strong>L-BDGPRO2</strong> model only). Browse the full range on the <a href="https://www.casetawireless.com/us/en" target="_blank" rel="noopener">Caseta website</a>.</p>
+      <ol>
+        <li>Pair your switches, dimmers, plug-in modules, and Pico remotes to the Smart Bridge PRO using the Lutron app, as usual.</li>
+        <li>Once all your devices are paired, open the <strong>Settings gear → Advanced → Integration</strong> and turn <strong>Telnet Support ON</strong>.</li>
+        <li>From that same Advanced menu, give the bridge a <strong>static IP</strong>, either set it directly there under network settings, or reserve one for it in your router's DHCP settings.</li>
+        <li>Tap <strong>Send Integration Report</strong> to email yourself the JSON listing every device paired to the bridge.</li>
+        <li>In SmartOneg, go to <strong>Settings → Bridges &amp; hubs</strong>, enable <strong>Use a Lutron bridge</strong>, fill in the bridge's IP, and save.</li>
+        <li>Then go to <strong>Devices → Add devices → Lutron Caseta</strong> and import that JSON report.</li>
+      </ol>
+
+      <h2 id="alarm">Alarm systems (EnvisaLink)</h2>
+      <p>SmartOneg can arm/disarm a DSC alarm panel and bypass individual zones through an <strong>EyezOn EnvisaLink</strong> module (target: the <strong>EVL-4EZR</strong>; the EVL-3 and EVL-4 speak the same protocol). It talks to the board directly over your local network, no cloud, and no Home Assistant required.</p>
+      <p>Why it's built in: on Shabbos and Yom Tov you often want to <strong>bypass interior/motion zones</strong> so walking through the house doesn't trip a sensor, then restore them after havdalah. SmartOneg exposes the panel as ordinary on/off devices, so a schedule rule or scene can do exactly that.</p>
+      <h3>Installing the module</h3>
+      <ul>
+        <li>Wire the EnvisaLink EVL-4EZR onto your DSC panel's keypad bus (Red / Black / Yellow / Green) per EyezOn's instructions and connect it to your network. This <a href="https://www.youtube.com/watch?v=BAuDqnGpT4g" target="_blank" rel="noopener">installation walkthrough video</a> covers the wiring and setup.</li>
+        <li>Note the module's <strong>local IP address</strong> and its <strong>TPI password</strong> (set on the EnvisaLink's own local web page, this is the device password, not your eyezon.com account).</li>
+      </ul>
+      <h3>Connecting SmartOneg</h3>
+      <ol>
+        <li>Settings → Bridges &amp; hubs → <strong>EnvisaLink alarm</strong>: enter the module's IP (port <code>4025</code> by default), the TPI password, your <strong>alarm code</strong> (needed to disarm), and the partition (usually <code>1</code>). Pick how it arms, stay (interior-aware), away, or night.</li>
+        <li>Under <strong>Alarm devices</strong>, add the <strong>partition</strong> (arm/disarm) and one <strong>bypass zone</strong> per DSC zone number you want to control. They show up on the Devices page.</li>
+        <li>Use them in schedules and scenes like any device: <em>on</em> = armed / bypassed, <em>off</em> = disarmed / active. For example, one Shabbos rule to bypass the motion zones at candle lighting and another to restore them after havdalah.</li>
+      </ol>
+      <p>Only DSC panels are supported directly today. Your alarm code is stored on-device alongside your other credentials, and disarming uses it automatically. If you have a different alarm/security system with arming, disarming, or bypass exposed as an entity or automation in Home Assistant, you can import it into SmartOneg the same way as any other Home Assistant device, see <a href="#devices">Devices &amp; bridges</a>.</p>
+
+      <h2 id="schedules">Schedules &amp; rules</h2>
+      <p>A rule is <em>what</em> happens and <em>when</em>. The “what” is a device (or several) turned on/off or set to a brightness (the label adapts to the device, lock/unlock, arm/disarm, open/close, start/dock, and so on), a thermostat action (hold temperature, resume schedule, preset, or HVAC mode), a scene start/end, a flash reminder, or an automation run, enabled, or disabled. The “when” is either a fixed clock time or an offset relative to a zman (candle lighting, shkia, tzeis, alos, plag, sof zman shma/tefilla). Every rule resolves to a real time in the <strong>live preview</strong> before you save, including rare situations decades out.</p>
+
+      <h3>Fixed time vs. relative to a zman</h3>
+      <p>Prefer <strong>relative to a zman</strong> whenever the intent is tied to the day, because it tracks the season automatically. “Turn the dining room on 1 hour before shkia” is right in June and December without you touching it; “turn it on at 6:45 PM” is only right for a few weeks a year. Reach for a <strong>fixed time</strong> when the intent really is a wall-clock moment, “kids' room off at 7:30 PM,” “front porch off at 11:00 PM.” You can combine them: a fixed time with clamps, or a zman offset with a floor/ceiling (below).</p>
+
+      <h3>“Copy from…” vs. “Start from the Regular schedule”</h3>
+      <p>These sound similar but behave very differently:</p>
+      <ul>
+        <li><strong>Copy from…</strong> (the button on each rules section) is a <em>one-time paste</em>. It drops the chosen day/situation's rules in as a starting point; from that moment they're independent, later edits to the source don't follow. Use it to seed a brand-new situation, or to reuse one room's setup as scaffolding.</li>
+        <li><strong>Start from the Regular schedule</strong> is a <em>live link</em> that inherits that day's Regular schedule into another situation for the same day, the common case: a situation that's “Regular, but with a few changes.” Regular's rules appear as cards you can customize or hide per-situation, and any future edit to Regular flows through automatically. See <a href="#situations">Situations &amp; inheritance</a> for the full model.</li>
+      </ul>
+      <p>Rule of thumb: if you want a living variation of Regular, inherit; if you want a fresh copy you'll evolve on its own, Copy from…</p>
+
+      <h3>Clamps vs. seasonal conditions</h3>
+      <p>Both live under a rule's fine-tuning, but they do different jobs, one decides <em>whether</em> a rule fires, the other decides <em>when</em>:</p>
+      <ul>
+        <li><strong>Seasonal conditions</strong> compare a zman to a time and, when true, either skip the rule entirely or swap in an alternate fire time, a different fixed time or a different zman + offset, in place of the rule's base trigger. The first matching condition wins.</li>
+        <li><strong>Never earlier / never later than</strong> are <strong>clamps</strong>. The rule still fires, but its resolved time is pinned to a floor or ceiling, they reshape <em>when</em>, not <em>whether</em>.</li>
+      </ul>
+      <p>The reason both exist: a zman-relative time drifts across the year, and each tool tames that drift in a different way. Some real examples:</p>
+      <ul>
+        <li><strong>Dynamic early-Shabbos timing.</strong> “Come on at 6:00 PM <em>if</em> shkia is after 7:00 PM; otherwise an hour before shkia.” One rule with a seasonal condition gives you a fixed early time on the long summer days and a floating one the rest of the year.</li>
+        <li><strong>Keep the kitchen on all afternoon in winter.</strong> Kitchen lights turn off at 4:00 PM after the day meal, but also come on an hour and forty minutes before shkia for a later meal. In winter, when shkia is ~4:45 PM, that “on” fires long before 4:00 PM and the off-rule would then shut them mid-meal. So put a condition on the off-rule: <em>don't fire if shkia is before ~6:30 PM.</em> The lights simply stay on all afternoon in winter, while the rule still works in summer.</li>
+        <li><strong>Pin a floating time to a wall clock (clamps).</strong> “30 minutes after shkia, but never before 7:30 and never after 9:00.” In winter (shkia ~4:45) it's pinned up to 7:30; in summer (shkia ~8:30) it's pinned down to 9:00, one rule stays correct year-round.</li>
+      </ul>
+      <p>Rule of thumb: if every case you have is “fire or don't fire,” you only need conditions. Reach for the clamps when you want a floating zman-based time held inside a hard wall-clock window.</p>
+
+      <h2 id="situations">Situations &amp; inheritance</h2>
+      <p>Each day-type (Shabbos, Pesach I, …) has a <strong>Regular</strong> schedule plus <strong>situations</strong> for the years it lands differently, “Falls on Shabbos,” “Starts motzei Shabbos,” “Erev Pesach,” and so on. A situation can <strong>start from the Regular schedule</strong> as a base: Regular's rules appear as cards you can customize or disable per-situation, and future edits to Regular flow through automatically.</p>
+
+      <h3>The workflow: Regular first, then inherit down</h3>
+      <p>The intended way to set this up, once:</p>
+      <ol>
+        <li><strong>Build your Regular schedules</strong> for everything, a Regular Shabbos, a Regular Pesach I, and so on. This is the 95% case and it's where you spend your time.</li>
+        <li><strong>For each special situation, check “Start from the Regular schedule,”</strong> then cross out the rules that don't apply and tweak the rest. A situation is almost always “Regular, but with a few changes,” so you're editing a handful of rules, not rewriting a day.</li>
+      </ol>
+      <p>Because situations inherit live, a fix to your Regular schedule next year automatically improves every situation built on it.</p>
+
+      <h3>Paired weekends (when a Yom Tov meets Shabbos)</h3>
+      <p>A few times a decade, one weekend spans <strong>two kinds of day</strong>, e.g. Erev Pesach falls on Shabbos (2025, 2045), or Shavuos/Pesach starts right after Shabbos, or a Friday Yom Tov runs straight into Shabbos. Each half is a <strong>variation of its own natural parent</strong>:</p>
+      <ul>
+        <li>The <strong>Shabbos day</strong> (which also happens to be Erev Pesach) is a variation of <strong>Shabbos</strong> → its “Erev Pesach” situation, inheriting your Regular Shabbos. On Erev Pesach the daytime genuinely differs, chametz stops mid-morning (sof zman achilas chametz), so meals shift earlier and the afternoon seudah changes (since no chometz meal and no matzo eaten Erev Pesach, either), so you'll want its own timing there.</li>
+        <li>The <strong>seder night + the Yom Tov day</strong> are a variation of <strong>Pesach I</strong> → its “Starts motzei Shabbos” situation, inheriting your Regular Pesach I.</li>
+      </ul>
+      <p>So it's <strong>two small cross-out passes</strong>, one on each parent, not one merged mega-situation (there'd be nowhere coherent to put the Yom Tov day's rules, which belong to Pesach every year, not to one special Shabbos). The same shape applies to Shavuos-on-Shabbos and to a Friday Yom Tov leading into Shabbos.</p>
+      <h3>Precedence &amp; conflicts</h3>
+      <p>There is <strong>no precedence</strong>, nothing “overrides” anything. Every schedule compiles onto one timeline and each rule fires at its moment. Two things keep that safe:</p>
+      <ul>
+        <li><strong>Candle lighting is per-evening.</strong> A rule anchored to candle lighting fires on <em>every</em> erev inside a multi-day weekend, its own candle lighting on night one of a 2-day Yom Tov, and again on night two, since each evening has its own hadlokas neiros.</li>
+        <li><strong>Havdalah is automatic.</strong> A rule anchored to havdalah only fires on the <em>last</em> day of a weekend or Yom Tov, so your “lights off after Shabbos” rule is silently skipped on a Shabbos that runs straight into Yom Tov, and fires at the end of the whole cluster instead. Skipped rules are shown (preview, email) so it's never a surprise.</li>
+        <li><strong>Conflicts are warned, never silently resolved.</strong> If two rules fight (same device, opposite commands close together), or a rule lands across the Shabbos↔Yom Tov seam (a Pesach erev rule resolving to Saturday afternoon, or a Shabbos 11:30 PM rule firing mid-seder), you'll see it in the preview timeline, on the dashboard, in a toast when you save, and in the pre-Yom Tov (by default one week prior) email summary. Nothing is auto-deleted, you decide.</li>
+      </ul>
+
+      <h3>Guest mode layers on top</h3>
+      <p>Guest mode is a temporary override switch on the dashboard (and set of rules under “Situations”) that <strong>layers over</strong> whatever's running: it changes only the exact devices and times you name, every other rule keeps going, and it auto-expires after that one Shabbos/Yom Tov. In any timeline preview, guest actions carry a blue <strong>Guest</strong> pill, those are intentional overrides, not conflicts.</p>
+
+      <h2 id="child-lock">Child Lock</h2>
+      <p>Opt-in globally and per-device. During an active Shabbos/Yom Tov, SmartOneg watches the bridge for deviations; if a watched light ends up wrong, it's set back after a <strong>grace delay</strong> (how long it waits before restoring, 5–15s). Flipping the same switch <strong>N times in a row</strong> (2–10, letting it revert between flips) latches that device to its manual state until havdalah, the non-Jew escape hatch.</p>
+      <p>The flips only add up when they come in quick succession: the app keeps a rolling window of about <code>grace + 25s</code> between one flip and the next (so it always covers a “flip → wait for the restore → flip again” cycle, and scales with your grace delay). The moment there's a longer gap the counter resets, so a press one day and another the next, or a few scattered presses over an evening, never accumulate into an accidental hold. A genuine override sequence takes well under a minute. Presses are capped at 10 and grace at 15s precisely because a real helper won't stand there flipping a switch for minutes on end.</p>
+      <p>Two details worth knowing. First, <strong>counting and the grace delay are separate</strong>: every flip is counted the instant it happens, not only once the grace delay elapses, so a fast flurry of presses adds up right away. The grace delay governs only the <em>restore</em>, and each flip restarts it, so during a rapid back-and-forth the app doesn't fight you mid-stream, it waits until things settle and sets the light right once, grace seconds after your <em>last</em> flip. Second, <strong>only flips that leave the light in the wrong state count</strong>: flipping it back to where the schedule wants it isn't a deviation at all, so it doesn't add to the counter, it simply cancels the pending restore. A practical consequence: the flips only add up when the light <strong>returns to its scheduled state in between</strong>, so pressing off five times while it's already off counts as one, not five, the escape hatch is “flip it off, let it come back on, flip it off again,” N times.</p>
+      <p>By default Child Lock begins at candle lighting. Households that accept Shabbos early can set it to begin at the day's <strong>first rule</strong> instead. It only ever acts during Shabbos/Yom Tov, never on a weekday.</p>
+
+      <h2 id="scenes-guest">Scenes, guest, away &amp; test mode</h2>
+      <ul>
+        <li><strong>Scenes</strong> are reusable groups of device states, with a live preview (apply now, one click restores).</li>
+        <li><strong>Guest mode</strong> layers one-click overrides onto the next Shabbos/Yom Tov only, then turns itself off.</li>
+        <li><strong>Away mode</strong> makes an empty house look lived-in (see below).</li>
+        <li><strong>Test mode</strong> runs the scheduler on a virtual clock so you can rehearse a real upcoming Yom Tov on your actual lights, then restores everything upon exit. It auto-exits if a real Shabbos begins.</li>
+      </ul>
+
+      <h3>Scenes</h3>
+      <p>A <strong>scene</strong> is a reusable, named group of device states, say a "mealtime" scene that puts the dining room chandelier at 60%, the hallway on, and the kitchen at 30%. You build it once on the Scenes page and then reference it from any schedule, so tweaking the scene updates every day that uses it, no need to touch each rule. The editor has a <strong>live preview</strong>: apply the scene to your real lights now to see it, and one click restores them to exactly where they were before the preview (it snapshots each device on entry and drives it back on exit).</p>
+      <p>Every scene has two halves: a <strong>start</strong> state and an optional <strong>end</strong> state. In a schedule you point a rule at a scene in one of two ways, <strong>Start scene</strong> or <strong>End scene</strong>. A <em>Start scene</em> rule drives every device in the scene to its start state at that rule's time. That is all most scenes ever need: "start the mealtime scene at candle lighting" sets the group and you are done. <strong>You never have to define an end state.</strong> Without one, the devices a scene set just stay where they are until another rule changes them.</p>
+      <p>The <strong>end</strong> state is what you turn on when you want a scene to also define how its group of devices should look <em>later</em>. Open the scene, switch on <em>Customize what happens when the scene ends</em>, and pick a target for each device: for lights <strong>Leave as is</strong>, <strong>Turn off</strong>, <strong>Turn on</strong>, or <strong>Dim to…</strong>; shades get <strong>Close</strong> / <strong>Open to…</strong>; thermostats get <strong>Resume program</strong> / <strong>Hold at…</strong>. Now a single <em>End scene</em> rule sets the entire group to that end state at once. So instead of writing a separate "off" rule for the chandelier, the hallway, and the kitchen at bedtime, you write one "end the mealtime scene" rule and the whole group lands on its defined end state together. A scene member you leave on <em>Leave as is</em> is untouched at end, which lets an end state turn some devices off while holding others.</p>
+      <p>When a scene defines an end state, its preview shows each device as a <strong>start&nbsp;→&nbsp;end</strong> progression, for example <em>On&nbsp;→&nbsp;Off</em> or <em>60%&nbsp;→&nbsp;20%</em>, so the change is obvious at a glance.</p>
+
+      <h3>Guest mode (overrides)</h3>
+      <p>Guest mode lets you flip specific devices for the next Shabbos or Yom Tov without rewriting your regular schedule. It <strong>layers on top</strong>: a guest rule replaces your normal rule for the <em>same device</em> only when the two happen at about the same time (within roughly <strong>10 minutes</strong> of each other). So a guest "dining room chandelier on at candle lighting" wins over a scene that would otherwise turn that same chandelier off at candle lighting, and the two never fight over the light.</p>
+      <p>Rules that are further apart in time are left alone, because they are two separate changes, not an override. If your schedule turns a light on at 6:00 and another rule turns it off an hour later at 7:00, both still run in order (on, then off). Guest mode only settles the collision at the same moment, it does not touch the rest of your night.</p>
+      <p>In the day editor preview timeline, the rule a guest override replaces is shown struck through and marked <strong>overridden by guest</strong>, so you can see both what the scene would have done and what the guest changed. The simpler overview timeline (in a Shabbos or Yom Tov overview page) just shows the final result.</p>
+
+      <h3>Away mode (presence simulation)</h3>
+      <p>Going away for Shabbos or Yom Tov? Turn on <strong>away mode</strong> and pick a window, a single Shabbos, a whole festival (e.g. all of Sukkos) or just its <em>first days</em> / <em>last days</em>, or a custom date range. Instead of a separate schedule, it takes <strong>your own schedule</strong> and layers bounded randomness on it so the house looks occupied:</p>
+      <ul>
+        <li><strong>Jittered times</strong>, each on/off shifts by up to ±15&nbsp;minutes so it isn't robotically identical every night.</li>
+        <li><strong>Evening-weighted lit periods</strong>, lights are kept on <em>longer in the evening</em> (when it's dark and presence actually reads) and only <em>briefly during the day</em>.</li>
+        <li><strong>Variation</strong>, some rooms stay dark on some nights (~1 in 6).</li>
+        <li><strong>Quiet hours</strong>, nothing turns <em>on</em> late at night (11&nbsp;PM–6&nbsp;AM by default), no bedroom light at 3&nbsp;AM.</li>
+        <li>Only your <strong>lights</strong> are affected, never appliances (fridge Sabbath mode, urn), thermostats, alarms or shades.</li>
+      </ul>
+      <p><strong>When it applies.</strong> Away mode runs on the exact same window as Child Lock: from <strong>candle lighting to havdalah</strong> of each Shabbos/Yom Tov in your chosen range. It never touches erev preparation before candle lighting, wind-down after havdalah, <strong>Chol Hamoed</strong>, or ordinary weekdays. A window more than a week out shows as <em>scheduled</em> (a banner) and only becomes <em>active</em> as it nears; it turns itself off automatically once the window has passed. It is <strong>mutually exclusive with guest mode</strong>.</p>
+      <p><strong>Predictable.</strong> Because the whole transform is seeded, it's <em>deterministic</em>, the timeline preview shows exactly what will happen each night, and a backup instance simulates the identical pattern if it takes over.</p>
+
+      <h3>Test mode (rehearse a Shabbos or Yom Tov)</h3>
+      <p>Test mode runs the scheduler on a <strong>virtual clock</strong> so you can rehearse an upcoming Shabbos or Yom Tov on your <em>real</em> lights on any ordinary day. You pick the moment to pretend it is, and the app arms your actual schedule against that virtual time, so the real rules drive the real devices. It refuses to start while a real Shabbos or Yom Tov (or its erev) is already in effect, and it exits itself the moment a real one begins. On exit it puts every light back to the exact level it had when you started, because it snapshots them on entry.</p>
+      <p><strong>Stepping through the actions.</strong> Instead of waiting hours for each rule to arrive, you step through the schedule one action at a time with the previous and next arrows. Each jump moves the virtual clock to a few seconds <em>before</em> that action (5 seconds by default, and you can change it), so you arrive first and then watch the light change fire on your real devices.</p>
+      <p><strong>Why there is a short pause between steps.</strong> After each step the arrows are briefly disabled, for your pre-roll seconds plus a settle buffer of about 6 seconds (so roughly 11 seconds with the default). Every step actually drives your lights, and a slow hub or a scene that touches many devices needs a moment to finish adjusting. The pause lets one action play out fully before you can jump to the next, so steps do not stack up and flood the hub.</p>
+
+      <h2 id="guarding">Guarding your own automations</h2>
+      <p>SmartOneg drives the lights <em>you</em> put on its schedule, but it can also act as a Shabbos/Yom&nbsp;Tov <strong>gatekeeper</strong> for the rest of your smart home. <code>GET /api/oneg</code> answers whether Shabbos or Yom Tov is active, live, with no login required (one Oneg covers both Shabbos and Yom&nbsp;Tov):</p>
+      <pre><code>curl http://YOUR-SMARTONEG:1836/api/oneg
+
+{
+  "active": true,
+  "label": "Shabbos",
+  "startsAt": "2026-08-07T23:38:00.000Z",
+  "endsAt":   "2026-08-09T00:41:00.000Z",
+  "now":      "2026-08-08T14:12:00.000Z"
+}</code></pre>
+      <p><code>active</code> is <code>true</code> from candle&nbsp;lighting until havdalah (across a multi&#8209;day Yom&nbsp;Tov too), and <code>false</code> otherwise, computed on&#8209;device from the same zmanim SmartOneg schedules against, so it flips at the exact same moment. Put a check for it at the top of any weekday automation and bail out when it's <code>true</code>, and that automation simply won't run on Shabbos or Yom&nbsp;Tov.</p>
+
+      <h3>Home Assistant</h3>
+      <p>Add a REST binary sensor, then guard automations with a condition:</p>
+      <pre><code># configuration.yaml
+binary_sensor:
+  - platform: rest
+    name: Shabbos or Yom Tov
+    unique_id: smartoneg_oneg
+    resource: http://YOUR-SMARTONEG:1836/api/oneg
+    value_template: "{{ value_json.active }}"
+    scan_interval: 60</code></pre>
+      <pre><code># in an automation: only run when it's NOT Shabbos/Yom Tov
+condition:
+  - condition: state
+    entity_id: binary_sensor.shabbos_or_yom_tov
+    state: "off"</code></pre>
+
+      <h3>Apple HomeKit (Shortcuts)</h3>
+      <p>HomeKit automations can't call a URL directly, so trigger a <strong>Shortcut</strong> (via a HomeKit automation, or the Home app's "Convert to Shortcut") that checks first:</p>
+      <ol>
+        <li><strong>Get Contents of</strong> <code>http://YOUR-SMARTONEG:1836/api/oneg</code></li>
+        <li><strong>Get Dictionary Value</strong> — key <code>active</code></li>
+        <li><strong>If</strong> that value <strong>is</strong> <code>1</code> (true) → <strong>Stop This Shortcut</strong>. Put the rest of your actions <em>after</em> the If, so they only run when it's not Shabbos/Yom&nbsp;Tov.</li>
+      </ol>
+
+      <h2 id="shortcuts">Keyboard shortcuts</h2>
+      <p>A few keys speed up the pages you use most. On macOS use <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘</kbd>; on Windows/Linux use <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl</kbd>.</p>
+      <ul>
+        <li><strong>Save a schedule:</strong> In the rule editor, <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> saves the current situation (same as the Save button), instead of the browser's save-page dialog.</li>
+        <li><strong>Save settings:</strong> On the Settings page, <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> saves the tab you're on. Some tabs (Devices, System) save <em>and restart</em> to apply, exactly as their button does.</li>
+        <li><strong>Save a dialog:</strong> <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> also confirms save-style pop-ups, such as the scene editor and the room / device reorder panels.</li>
+        <li><strong>Change month:</strong> On the Calendar page, <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">←</kbd> and <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">→</kbd> jump to the previous and next month.</li>
+      </ul>
+
+      <h2 id="api">HTTP API reference</h2>
+      <p>All routes are under <code>/api</code> and return JSON. Browser sessions authenticate with a cookie (from <code>POST /api/auth/login</code>); automation can use a Bearer token (the <code>failover.syncToken</code> from your config) in the <code>Authorization</code> header. Below are the most useful endpoints.</p>
+
+      <h3>Health &amp; auth</h3>
+      <table>
+        <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+        <tr><td><code>GET /api/health</code></td><td>Status, version, role, bridge connectivity (unauthenticated).</td></tr>
+        <tr><td><code>GET /api/oneg</code></td><td>Is Shabbos/Yom&nbsp;Tov in effect right now? <code>{ active, label, startsAt, endsAt, now }</code> (unauthenticated). See <a href="#guarding">Guarding automations</a>.</td></tr>
+        <tr><td><code>POST /api/auth/login</code></td><td><code>{ email, password }</code> → session cookie.</td></tr>
+        <tr><td><code>POST /api/auth/logout</code></td><td>End the session.</td></tr>
+        <tr><td><code>GET /api/me</code></td><td>Current account.</td></tr>
+      </table>
+
+      <h3>Devices &amp; control</h3>
+      <table>
+        <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+        <tr><td><code>GET /api/zones</code></td><td>All devices with expected/reported levels and latches.</td></tr>
+        <tr><td><code>PATCH /api/zones/:id</code></td><td>Rename, set room, device type, dimmable, enforce, °C/°F.</td></tr>
+        <tr><td><code>POST /api/zones/:id/command</code></td><td><code>{ level, confirm? }</code>, set a level (0–100).</td></tr>
+        <tr><td><code>POST /api/zones/:id/flash</code></td><td><code>{ times }</code>, blink as a reminder.</td></tr>
+        <tr><td><code>POST /api/zones/manual</code></td><td>Add a virtual device.</td></tr>
+        <tr><td><code>DELETE /api/zones/:id</code></td><td>Remove (409 first with references; <code>?force=true</code> cascades).</td></tr>
+        <tr><td><code>POST /api/zones/import</code></td><td>Ingest a Lutron integration report.</td></tr>
+        <tr><td><code>GET /api/devices/stream</code></td><td>Server-sent events: live level changes.</td></tr>
+      </table>
+
+      <h3>Schedules &amp; timeline</h3>
+      <table>
+        <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+        <tr><td><code>GET /api/schedules</code></td><td>All schedules, keyed by day-type → variant.</td></tr>
+        <tr><td><code>GET /api/schedules/meta</code></td><td>Applicable day-types and variants.</td></tr>
+        <tr><td><code>PUT /api/schedules/:dayType/:variant</code></td><td>Save rules, <code>inheritsRegular</code>, <code>removedIds</code>.</td></tr>
+        <tr><td><code>GET /api/schedules/next-occurrences</code></td><td>Next date each situation occurs (up to 30 years).</td></tr>
+        <tr><td><code>GET /api/timeline?date=YYYY-MM-DD</code></td><td>Compiled actions for that day (<code>&amp;guest=1</code> to force guest).</td></tr>
+        <tr><td><code>POST /api/compile</code></td><td>Recompile; returns conflicts + report.</td></tr>
+        <tr><td><code>POST /api/guest-mode</code></td><td><code>{ enabled }</code>, toggle guest mode for the next cluster.</td></tr>
+        <tr><td><code>POST /api/away-mode</code></td><td><code>{ enabled, from, to, label }</code>, enable presence simulation over a date window (disable guest mode).</td></tr>
+        <tr><td><code>GET /api/away-presets</code></td><td>Suggested away windows (whole festivals + upcoming Shabbosos).</td></tr>
+      </table>
+
+      <h3>Scenes</h3>
+      <table>
+        <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+        <tr><td><code>GET /api/scenes</code></td><td>All scenes.</td></tr>
+        <tr><td><code>POST /api/scenes</code> · <code>PUT /api/scenes/:id</code></td><td>Create / update a scene.</td></tr>
+        <tr><td><code>POST /api/scenes/:id/preview</code></td><td>Apply live with a one-time snapshot.</td></tr>
+        <tr><td><code>DELETE /api/scene-preview</code></td><td>Exit preview and restore.</td></tr>
+      </table>
+
+      <h3>Calendar &amp; PDFs</h3>
+      <table>
+        <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+        <tr><td><code>GET /api/calendar?from=&amp;to=</code></td><td>Clusters (candle lighting → havdalah) with day details.</td></tr>
+        <tr><td><code>GET /api/zmanim?date=</code></td><td>Full zmanim for a date.</td></tr>
+        <tr><td><code>GET /api/pdf/yomtov/:festival</code></td><td>Printable festival zmanim sheet.</td></tr>
+        <tr><td><code>GET /api/pdf/shabbos-year</code></td><td>Full-year Shabbos sheet.</td></tr>
+        <tr><td><code>GET /api/pdf/omer</code></td><td>Sefiras HaOmer chart.</td></tr>
+      </table>
+
+      <h3>Settings, backups &amp; integrations</h3>
+      <table>
+        <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+        <tr><td><code>GET /api/settings</code> · <code>PUT /api/settings</code></td><td>Read / patch config (secrets redacted as <code>__SET__</code>).</td></tr>
+        <tr><td><code>GET /api/sync/export</code> · <code>POST /api/config/import</code></td><td>Full config export / import.</td></tr>
+        <tr><td><code>GET /api/backups</code> · <code>POST /api/backups/:name/restore</code></td><td>List / restore nightly snapshots.</td></tr>
+        <tr><td><code>POST /api/homeassistant/{discover,import}</code></td><td>Discover and import HA entities.</td></tr>
+        <tr><td><code>POST /api/homebridge/{discover,import}</code></td><td>Homebridge accessories.</td></tr>
+        <tr><td><code>POST /api/matter/{commission,discover,import}</code></td><td>Pair and import Matter devices.</td></tr>
+        <tr><td><code>POST /api/notify/test</code></td><td>Send a test notification to every enabled channel.</td></tr>
+        <tr><td><code>GET /api/logs</code> · <code>GET /api/logs/download</code></td><td>Search the log ring / download the full log file.</td></tr>
+      </table>
+
+      <h2 id="from-source">From source (<a href="https://www.youtube.com/watch?v=8fcSviC7cRM&t=29s" target="_blank">developers</a>)</h2>
+      <a href="https://www.youtube.com/watch?v=8fcSviC7cRM&t=29s" target="_blank" rel="noopener" class="ballmer-gif"><img src="steve-ballmer-microsoft.gif" alt="Developers, developers, developers" style="max-width:100%;border-radius:.75rem;margin:.6rem 0"></a>
+      <pre><code>git clone https://github.com/moshechaikin/smart-oneg.git
+cd smart-oneg
+npm install                # all deps, including dev/test tooling
+npm start                  # production server on http://localhost:1836
+npm run dev                # same, but restarts on file changes (node --watch)</code></pre>
+      <p>Data goes in <code>./data</code> (override with <code>DATA_DIR</code>); change the port with <code>PORT</code>. After editing any Tailwind classes, rebuild the stylesheet:</p>
+      <pre><code>npm run build:css          # public/css/tailwind.css → public/css/app.css (minified)</code></pre>
+      <h3>Tests</h3>
+      <p>The repo ships a full suite, unit + full-stack integration (real scheduler, a mock Lutron bridge, the enforcement pipeline) plus end-to-end browser tests.</p>
+      <pre><code>npm test                   # vitest: unit + integration (the main suite)
+npm run test:watch         # vitest in watch mode
+npm run test:e2e           # Playwright end-to-end (needs: npx playwright install)</code></pre>
+      <p class="mt-10 text-stone-500 text-sm">Developed by <a href="https://github.com/moshechaikin/" target="_blank" rel="noopener">Moshe Chaikin</a> · Powered by <a href="https://github.com/hebcal/hebcal-es6" target="_blank" rel="noopener">Hebcal</a></p>
+    </main>
+  </div>
+
+  <script>
+    // mobile documentation menu: mirror the sidebar, one source of truth.
+    // Cloned BEFORE the active-section observer is wired so its links can be
+    // highlighted too (they share the .sidelink/.active styling).
+    const mnav = document.getElementById('mobile-nav');
+    document.getElementById('mobile-nav-links').innerHTML = document.getElementById('side').innerHTML;
+
+    // active-section highlight, tracks BOTH the desktop sidebar and the mobile
+    // menu (keyed by section, since the mobile links are clones of the same
+    // hrefs), so whichever nav is visible shows the current section.
+    const allLinks = [...document.querySelectorAll('#side .sidelink, #mobile-nav-links .sidelink')];
+    const bySection = new Map();
+    for (const l of allLinks) {
+      const id = l.getAttribute('href').slice(1);
+      (bySection.get(id) ?? bySection.set(id, []).get(id)).push(l);
+    }
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) {
+        allLinks.forEach((l) => l.classList.remove('active'));
+        (bySection.get(e.target.id) ?? []).forEach((l) => l.classList.add('active'));
+      }
+    }, { rootMargin: '-10% 0px -80% 0px' });
+    document.querySelectorAll('main [id]').forEach((n) => io.observe(n));
+
+    const setMenu = (open) => { mnav.classList.toggle('hidden', !open); document.body.style.overflow = open ? 'hidden' : ''; };
+    document.getElementById('menu-btn').addEventListener('click', () => setMenu(true));
+    document.getElementById('menu-close').addEventListener('click', () => setMenu(false));
+    document.getElementById('mobile-nav-backdrop').addEventListener('click', () => setMenu(false));
+    document.getElementById('mobile-nav-links').addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
+
+    // copy-to-clipboard button on every command block (copy icon → check icon)
+    const COPY_ICON = '<svg class="ci-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    const CHECK_ICON = '<svg class="ci-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>';
+    function setBtn(btn, icon, label) { btn.innerHTML = `${icon}<span class="ci-label">${label}</span>`; }
+    async function copyCode(btn, text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+        else {
+          const ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        }
+        setBtn(btn, CHECK_ICON, 'Copied'); btn.classList.add('copied');
+      } catch { setBtn(btn, COPY_ICON, 'Press ⌘/Ctrl+C'); }
+      setTimeout(() => { setBtn(btn, COPY_ICON, 'Copy'); btn.classList.remove('copied'); }, 1600);
+    }
+    document.querySelectorAll('.prose pre').forEach((pre) => {
+      // wrap the <pre> so the button sits on a non-scrolling parent, not on the
+      // horizontally-scrolling <pre> (which dragged the button across the code)
+      const wrap = document.createElement('div');
+      wrap.className = 'code-wrap';
+      pre.parentNode.insertBefore(wrap, pre);
+      wrap.appendChild(pre);
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'copy-btn';
+      setBtn(btn, COPY_ICON, 'Copy');
+      btn.addEventListener('click', () => copyCode(btn, pre.querySelector('code')?.textContent ?? pre.textContent));
+      wrap.appendChild(btn);
+    });
+  </script>
+</body>
+</html>

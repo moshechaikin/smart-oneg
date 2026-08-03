@@ -1,16 +1,53 @@
 {
-  "name": "shabbos-yt-smart-home",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node src/index.js"
+  "name": "smart-oneg",
+  "version": "1.0.0-rc.10",
+  "description": "The Ultimate Shabbos & Yom Tov Smart Home Automation App",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=22"
   },
-  "keywords": [],
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "build:css": "tailwindcss -i public/css/tailwind.css -o public/css/app.css --minify",
+    "build:site-css": "tailwindcss -i smartoneg.com/assets/tailwind-src.css -o smartoneg.com/assets/tailwind.css --minify",
+    "build:demo": "bash scripts/build-demo.sh",
+    "spike:hebcal": "node scripts/spike-hebcal.mjs",
+    "spike:lutron": "node scripts/spike-lutron.mjs",
+    "reset-password": "node server/tools/reset-password.mjs"
+  },
   "author": "Moshe Chaikin",
-  "license": "ISC",
+  "license": "GPL-2.0-only",
   "dependencies": {
-    "telnet-client": "^2.0.3"
+    "@hebcal/core": "^6.9.2",
+    "bcryptjs": "^2.4.3",
+    "croner": "^8.0.0",
+    "express": "^4.19.0",
+    "express-session": "^1.18.0",
+    "luxon": "^3.4.0",
+    "memorystore": "^1.6.7",
+    "nanoid": "^5.0.0",
+    "nodemailer": "^6.9.0",
+    "pdfkit": "^0.19.1",
+    "pino": "^9.0.0",
+    "pino-roll": "^2.0.0",
+    "tz-lookup": "^6.1.25",
+    "web-push": "^3.6.0",
+    "zipcodes": "^8.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/cli": "^4.3.2",
+    "supertest": "^7.0.0",
+    "tailwindcss": "^4.3.2",
+    "vitest": "^2.0.0"
+  },
+  "optionalDependencies": {
+    "@matter/main": "^0.17.4",
+    "@project-chip/matter.js": "^0.17.4"
   }
 }

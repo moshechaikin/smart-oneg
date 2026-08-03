@@ -1,2 +1,12 @@
 .idea
 node_modules
+.DS_Store
+data/
+test-results/
+playwright-report/
+*.log
+resources
+docker-compose.override.yml
+.claude
+scripts/*
+!scripts/build-demo.sh

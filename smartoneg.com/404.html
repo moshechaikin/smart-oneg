@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page not found · SmartOneg</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="/assets/tailwind.css">
+  <style>
+    @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-14px) } }
+    @keyframes glow { 0%,100% { opacity:.3 } 50% { opacity:.6 } }
+    @keyframes grad { to { background-position: 200% center } }
+    .float { animation: float 6s ease-in-out infinite }
+    .glow { animation: glow 5s ease-in-out infinite }
+    .grad-text { background: linear-gradient(110deg,#b45309,#d4881f 30%,#e0a63c 55%,#d4881f 75%,#92400e); background-size: 200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation: grad 7s linear infinite }
+    @media (prefers-color-scheme: dark) { .grad-text { background-image: linear-gradient(110deg,#e0a63c,#f3d09a 30%,#d4881f 55%,#f3d09a 75%,#b45309) } }
+    @media (prefers-reduced-motion: reduce) { .float,.glow,.grad-text { animation: none !important } }
+    html { -webkit-tap-highlight-color: transparent }
+  </style>
+</head>
+<body class="font-sans bg-stone-50 dark:bg-stone-950 text-stone-800 dark:text-stone-100 antialiased min-h-screen flex flex-col">
+  <header class="sticky top-0 z-40 backdrop-blur border-b border-stone-200 dark:border-white/5 bg-stone-50/80 dark:bg-stone-950/70">
+    <nav class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5">
+        <img src="/assets/icon-512.png" alt="" class="w-9 h-9 shadow ring-1 ring-stone-200 dark:ring-white/10" style="border-radius:22.37%">
+        <span class="font-bold text-lg tracking-tight">SmartOneg</span>
+      </a>
+      <div class="flex items-center gap-1.5 text-sm font-medium">
+        <a href="/docs/" class="px-3 py-1.5 rounded-lg hover:bg-stone-200/60 dark:hover:bg-white/5 transition-colors">Docs</a>
+        <a href="/demo" class="px-3 py-1.5 rounded-lg hover:bg-stone-200/60 dark:hover:bg-white/5 transition-colors">Demo</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="flex-1 flex items-center justify-center px-5 py-16">
+    <div class="relative text-center max-w-lg">
+      <!-- soft glow behind the logo -->
+      <div class="glow pointer-events-none absolute left-1/2 top-8 -translate-x-1/2 w-64 h-64 rounded-full bg-accent-400/25 blur-3xl"></div>
+
+      <img src="/assets/icon-512.png" alt="SmartOneg" class="float relative mx-auto w-20 h-20 sm:w-24 sm:h-24 shadow-2xl shadow-accent-900/20 dark:shadow-accent-900/40 ring-1 ring-stone-200 dark:ring-white/10" style="border-radius:22.37%">
+
+      <p class="relative mt-8 text-7xl sm:text-8xl font-black tracking-tight grad-text">404</p>
+      <h1 class="relative mt-2 text-2xl sm:text-3xl font-bold tracking-tight">This page went dark</h1>
+      <p class="relative mt-3 text-stone-500 dark:text-stone-400 leading-relaxed">
+        The page you're looking for isn't here. It may have moved, or the link was mistyped.
+        Let's get you back to somewhere lit.
+      </p>
+
+      <div class="relative mt-8 flex flex-wrap items-center justify-center gap-3">
+        <a href="/" class="inline-flex items-center gap-2 rounded-xl bg-accent-600 hover:bg-accent-700 text-white px-5 py-2.5 font-semibold shadow-lg shadow-accent-900/20 transition-colors">Back home</a>
+        <a href="/docs/" class="inline-flex items-center gap-2 rounded-xl border border-stone-300 dark:border-white/15 hover:bg-stone-200/50 dark:hover:bg-white/5 px-5 py-2.5 font-semibold transition-colors">Read the docs</a>
+        <a href="/demo" class="inline-flex items-center gap-2 rounded-xl border border-stone-300 dark:border-white/15 hover:bg-stone-200/50 dark:hover:bg-white/5 px-5 py-2.5 font-semibold transition-colors">Try the demo</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-stone-200 dark:border-white/5 py-6 text-center text-sm text-stone-500 dark:text-stone-400">
+    Developed by <a href="https://github.com/moshechaikin/" target="_blank" rel="noopener" class="hover:text-accent-600 dark:hover:text-accent-400">Moshe Chaikin</a> · Powered by <a href="https://github.com/hebcal/hebcal-es6" target="_blank" rel="noopener" class="hover:text-accent-600 dark:hover:text-accent-400">Hebcal</a>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,51 @@
+# SmartOneg — https://smartoneg.com
+# Developed by Moshe Chaikin (github.com/moshechaikin)
+#
+# Quick start (no clone needed):
+#   wget -O docker-compose.yml https://github.com/moshechaikin/smart-oneg/releases/latest/download/docker-compose.yml
+#   docker compose up -d
+# Then open http://<host>:1836 and follow the setup wizard.
+#
+# All data (config, schedules, logs, nightly backups) lives in ./data next to
+# this file — image updates, including automatic Watchtower ones, never touch it.
+services:
+  smart-oneg:
+    image: ghcr.io/moshechaikin/smart-oneg:latest
+    container_name: smart-oneg
+    restart: unless-stopped
+    ports:
+      - "1836:1836"
+    volumes:
+      - ./data:/data
+      # ── One-click in-app updates (Settings → Software updates) ──────────────
+      # Mounting the Docker socket lets the app pull a new release and restart
+      # itself from the GUI. It is enabled by default because SmartOneg is meant
+      # to run on a home LAN.
+      #
+      # SECURITY: the Docker socket is ROOT-EQUIVALENT ACCESS TO THIS HOST.
+      # Anything that can talk to it can take over the machine. That is an
+      # acceptable trade on a private LAN, but if you EXPOSE this app to the
+      # internet (port-forward, public tunnel, etc.) you should either:
+      #   • remove this socket line (updates then fall back to a copy-paste
+      #     `docker compose pull && up -d` command — nothing else is lost), and/or
+      #   • put a real access layer in FRONT of the app — Cloudflare Access,
+      #     a Tailscale/WireGuard VPN, an authenticating reverse proxy — rather
+      #     than relying only on SmartOneg's own login.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # The app runs as the non-root `node` user, so it needs the host's docker
+    # group to actually use the socket above. If one-click update reports it
+    # "could not start", find the gid with `getent group docker` (often 999 on
+    # Linux; Docker Desktop on Mac/Windows usually needs nothing) and set it:
+    # group_add:
+    #   - "999"
+
+  # Optional: automatic updates. Uncomment to have Watchtower pull new SmartOneg
+  # releases as they are published and clean up the old image. It only touches
+  # the smart-oneg container (named at the end of the command); your ./data is
+  # untouched. --interval is in seconds (86400 = once a day).
+  # watchtower:
+  #   image: nickfedor/watchtower
+  #   restart: unless-stopped
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: --cleanup --interval 86400 smart-oneg

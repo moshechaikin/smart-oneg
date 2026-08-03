@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartOneg: The Ultimate Shabbos &amp; Yom Tov Smart Home Automation App</title>
+  <meta name="description" content="SmartOneg automates your lights for Shabbos and Yom Tov: rules relative to zmanim, full Yom Tov awareness, Child Lock that reverses manual switch presses, and support for Lutron, Home Assistant, Homebridge, Matter and more.">
+  <!-- Open Graph / link previews (iMessage, WhatsApp, Signal, Slack, …). Image
+       URLs MUST be absolute for crawlers to fetch them. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SmartOneg">
+  <meta property="og:url" content="https://smartoneg.com/">
+  <meta property="og:title" content="SmartOneg: Shabbos &amp; Yom Tov Smart Home Automation">
+  <meta property="og:description" content="The Ultimate Shabbos &amp; Yom Tov Smart Home Automation App">
+  <meta property="og:image" content="https://smartoneg.com/assets/og-image.jpg">
+  <meta property="og:image:secure_url" content="https://smartoneg.com/assets/og-image.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="SmartOneg — automate your lights for Shabbos and Yom Tov, computed from zmanim.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SmartOneg: Shabbos &amp; Yom Tov Smart Home Automation">
+  <meta name="twitter:description" content="The Ultimate Shabbos &amp; Yom Tov Smart Home Automation App">
+  <meta name="twitter:image" content="https://smartoneg.com/assets/og-image.jpg">
+  <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/tailwind.css">
+  <style>
+    @keyframes float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-14px) } }
+    @keyframes rise { from { opacity:0; transform: translateY(24px) } to { opacity:1; transform: translateY(0) } }
+    @keyframes slideDown { from { opacity:0; transform: translateY(-22px) } to { opacity:1; transform: translateY(0) } }
+    @keyframes heroShotIn { from { opacity:0; transform: rotateX(18deg) translateY(56px) scale(.94) } to { opacity:1; transform: rotateX(0deg) translateY(0) scale(1) } }
+    @keyframes glow { 0%,100% { opacity:.35 } 50% { opacity:.7 } }
+    @keyframes grad { to { background-position: 200% center } }
+    @keyframes pulse { 0%,100% { transform: scale(1); opacity:.9 } 50% { transform: scale(2.4); opacity:0 } }
+    .float { animation: float 6s ease-in-out infinite }
+    .glow { animation: glow 5s ease-in-out infinite }
+    .reveal { opacity:0 }
+    .reveal.in { animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards }
+    /* hero text: slides down into place on page load (staggered via inline
+       animation-delay per element), distinct from the below-fold .reveal
+       (which rises on scroll-into-view) since this content is above the fold */
+    .slide-down { animation: slideDown .6s cubic-bezier(.2,.7,.2,1) both }
+    /* hero screenshot: was scroll-tied (tilt/rise as you scrolled past it);
+       now a single faster page-load animation instead, timed just after the
+       hero text finishes cascading in */
+    #hero-shot { animation: heroShotIn .65s cubic-bezier(.2,.7,.2,1) .38s both }
+    /* shimmering gold headline (a touch deeper in light mode for contrast) */
+    .grad-text { background: linear-gradient(110deg,#b45309,#d4881f 30%,#e0a63c 55%,#d4881f 75%,#92400e); background-size: 200% auto; -webkit-background-clip:text; background-clip:text; color:transparent; animation: grad 7s linear infinite }
+    @media (prefers-color-scheme: dark) { .grad-text { background-image: linear-gradient(110deg,#e0a63c,#f3d09a 30%,#d4881f 55%,#f3d09a 75%,#b45309) } }
+    /* cards lift on hover */
+    .lift, .feature { transition: transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .28s, border-color .28s }
+    .lift:hover, .feature:hover { transform: translateY(-5px); box-shadow: 0 18px 40px -18px rgba(212,136,31,.35); border-color: rgba(212,136,31,.35) }
+    .live-dot { position: relative }
+    .live-dot::after { content:''; position:absolute; inset:0; border-radius:9999px; background:#10b981; animation: pulse 2.2s ease-out infinite }
+    @media (prefers-reduced-motion: reduce) { .float,.glow,.grad-text,.live-dot::after,.slide-down,#hero-shot { animation: none !important } }
+    html { -webkit-tap-highlight-color: transparent }
+    /* balance headings so narrow screens don't orphan a single word on its
+       own line (e.g. "Tov" or "for" at 320px) */
+    h1, h2, h3 { text-wrap: balance }
+    /* never let a glow / tilt / overflowing dropdown push a horizontal
+       scrollbar; clip (not hidden) so the sticky header keeps working */
+    html, body { overflow-x: clip }
+    /* clear the sticky header (h-16) when jumping to #features / #devices / #about
+       so the heading isn't tucked right under the navbar */
+    section[id] { scroll-margin-top: 2rem }
+
+    /* ================= live feature components ==================
+       The feature visuals below are rebuilt from the real app's own markup as
+       responsive HTML (not screenshots): sharper, larger, theme-aware, and
+       animatable. These classes carry the signature look — a warm candle-amber
+       glow behind each floating panel, a gentle 3D tilt, and glowing timeline
+       dots — while the panels reuse the app's card / badge / control styling. */
+    @keyframes dotpulse {
+      0%,100% { box-shadow: 0 0 0 5px var(--dotring), 0 0 14px 3px rgba(224,166,60,.55) }
+      50%     { box-shadow: 0 0 0 5px var(--dotring), 0 0 26px 8px rgba(224,166,60,.9) }
+    }
+    .fx-dot { --dotring:#f2ede3; width:1.25rem; height:1.25rem; border-radius:9999px; z-index:2;
+      background:radial-gradient(circle at 35% 30%, #f3d09a, #e0a63c 60%, #d4881f);
+      box-shadow: 0 0 0 5px var(--dotring), 0 0 16px 4px rgba(224,166,60,.6); animation: dotpulse 3.2s ease-in-out infinite; flex:0 0 auto }
+    @media (prefers-color-scheme: dark) { .fx-dot { --dotring:#0d0b09 } }
+    /* soft amber glow behind a floating component */
+    .fx-stage { position:relative }
+    /* Horizontal inset stays 0 on mobile: a negative one makes this glow's box
+       poke past the near-full-width stage and cause horizontal scroll on phones
+       (Safari < 16 ignores the page's overflow-x:clip). Desktop bleeds outward. */
+    .fx-stage::before { content:''; position:absolute; inset:-10% 0; z-index:-1; border-radius:2.5rem;
+      background:radial-gradient(58% 58% at 50% 42%, rgba(224,166,60,.30), rgba(212,136,31,.10) 55%, transparent 74%);
+      filter:blur(30px) }
+    @media (prefers-color-scheme: dark) { .fx-stage::before { background:radial-gradient(58% 58% at 50% 42%, rgba(224,166,60,.24), rgba(212,136,31,.08) 55%, transparent 74%) } }
+    /* flash-reminder demo: an orange glow behind the card blinks twice, like the
+       actual flash it's illustrating, then rests before repeating */
+    .fx-flash-demo::after { content:''; position:absolute; inset:-22% -10%; z-index:-1; border-radius:2.5rem;
+      background:radial-gradient(72% 72% at 50% 42%, rgba(249,115,22,.65), rgba(234,88,12,.22) 55%, transparent 78%);
+      filter:blur(38px); opacity:0; animation: fxFlashDemo 5s ease-in-out infinite }
+    @media (min-width: 768px) { .fx-flash-demo::after { inset:-22% -20% } }
+    @keyframes fxFlashDemo {
+      0%, 20% { opacity:0 }
+      4%, 10% { opacity:1 }
+      7% { opacity:0 }
+      100% { opacity:0 }
+    }
+    /* 3D tilt — desktop only (a rotateY widens the box and would cause
+       horizontal scroll on phones); straightens on hover */
+    .fx-tilt { transition: transform .55s cubic-bezier(.2,.7,.2,1) }
+    @media (min-width: 768px) {
+      .fx-stage::before { inset:-10% -8% }  /* restore the sideways glow bleed where there's room */
+      .fx-tilt { transform: perspective(1500px) rotateY(var(--ry,-7deg)) rotateX(3.5deg) }
+      .fx-tilt.rev { --ry: 7deg }
+      .fx-tilt:hover { transform: perspective(1500px) rotateY(0deg) rotateX(0deg) }
+    }
+    /* the email preview shows the whole plan but fades out near the bottom */
+    .fx-fade { -webkit-mask-image: linear-gradient(to bottom,#000 60%,transparent 97%); mask-image: linear-gradient(to bottom,#000 60%,transparent 97%) }
+    /* printable-zmanim slideshow: the festival sheets crossfade in place */
+    .pdf-slide { position:absolute; top:0; left:0; width:100%; opacity:0; transition: opacity .8s ease }
+    .pdf-slide.on { opacity:1 }
+    @media (prefers-reduced-motion: reduce) { .pdf-slide { transition:none } }
+    /* app-style badges (match .badge-on/.badge-off: rounded-full, accent-100/700) */
+    .fx-badge { display:inline-flex; align-items:center; gap:.25rem; padding:.2rem .6rem; border-radius:9999px; font-size:.8rem; font-weight:600; line-height:1.2; white-space:nowrap }
+    .fx-on { background:#fae9cf; color:#92400e } .fx-off { background:#e7e5e4; color:#57534e }
+    @media (prefers-color-scheme: dark) { .fx-on { background:rgba(212,136,31,.20); color:#f3d09a } .fx-off { background:rgba(255,255,255,.08); color:#a8a29e } }
+    /* mock select / input control (matches .select: rounded-xl, stone-300 border) */
+    .fx-ctl { display:inline-flex; align-items:center; gap:.45rem; padding:.55rem .8rem; border-radius:.75rem; border:1px solid #d6d3d1; background:#fff; font-size:1rem; font-weight:500; color:#292524 }
+    @media (prefers-color-scheme: dark) { .fx-ctl { background:#292524; border-color:#44403c; color:#e7e5e4 } }
+    .fx-cv { width:.75rem; height:.75rem; opacity:.5 }
+
+    /* ---- timeline draws itself in when scrolled into view ---- */
+    @keyframes tlLine { from { transform:scaleY(0) } to { transform:scaleY(1) } }
+    @keyframes tlPop  { from { opacity:0; transform:scale(.15) } to { opacity:1; transform:scale(1) } }
+    @keyframes tlRow  { from { opacity:0; transform:translateY(16px) } to { opacity:1; transform:translateY(0) } }
+    .fx-rail { position:relative }
+    .fx-rail::after { content:''; position:absolute; left:0; top:.3rem; bottom:.3rem; width:2px; background:#e7e5e4; transform:scaleY(0); transform-origin:top; z-index:0 }
+    @media (prefers-color-scheme: dark) { .fx-rail::after { background:#44403c } }
+    .fx-rail .tl-item { position:relative; z-index:1; opacity:0 } .fx-rail .tl-item .fx-dot { opacity:0 }
+    .reveal.in .fx-rail::after { animation: tlLine .8s cubic-bezier(.5,0,.2,1) .1s forwards }
+    .reveal.in .fx-rail .tl-item { animation: tlRow .5s ease-out forwards }
+    .reveal.in .fx-rail .tl-item:nth-child(1){ animation-delay:.2s } .reveal.in .fx-rail .tl-item:nth-child(2){ animation-delay:.42s } .reveal.in .fx-rail .tl-item:nth-child(3){ animation-delay:.64s }
+    .reveal.in .fx-rail .tl-item .fx-dot { animation: tlPop .5s cubic-bezier(.34,1.56,.64,1) forwards }
+    .reveal.in .fx-rail .tl-item:nth-child(1) .fx-dot{ animation-delay:.2s } .reveal.in .fx-rail .tl-item:nth-child(2) .fx-dot{ animation-delay:.42s } .reveal.in .fx-rail .tl-item:nth-child(3) .fx-dot{ animation-delay:.64s }
+
+    /* ---- Child Lock demo: light gets switched off, app bounces it back on.
+           Mirrors the real app's compact device ROW: the row tints, the icon
+           tile + button change color, and the badge/icon get the device-pop
+           bounce. ---- */
+    @keyframes devPop { 0%{transform:scale(1)} 40%{transform:scale(1.22)} 100%{transform:scale(1)} }
+    @keyframes valFlash { 0%{transform:scale(1)} 40%{transform:scale(1.14)} 100%{transform:scale(1)} }
+    .dev-row, .dev-icon, .dev-btn { transition: background-color .3s ease, border-color .3s ease, color .3s ease }
+    /* ON = per schedule (default). The room card stays neutral; the device ROW
+       tints amber (mirrors the app's compact-row Devices page), icon tints too. */
+    .dev-card:not(.off) .dev-row { background:#fdf6ec }
+    @media (prefers-color-scheme: dark) { .dev-card:not(.off) .dev-row { background:rgba(212,136,31,.12) } }
+    /* off = the app's neutral inset-card fill, so each device reads as a card */
+    .dev-card.off .dev-row { background:#f5f5f4 }
+    @media (prefers-color-scheme: dark) { .dev-card.off .dev-row { background:rgba(255,255,255,.04) } }
+    .dev-icon { background:#f5f5f4; color:#a8a29e }
+    @media (prefers-color-scheme: dark) { .dev-icon { background:#292524; color:#78716c } }
+    .dev-card:not(.off) .dev-icon { background:rgba(230,184,110,.55); color:#b45309 }
+    @media (prefers-color-scheme: dark) { .dev-card:not(.off) .dev-icon { background:rgba(212,136,31,.25); color:#f3d09a } }
+    /* button: OFF shows the accent "Turn on" call to action; ON shows a subtle "Turn off" */
+    .dev-btn { background:#fff; color:#292524; border:1px solid #d6d3d1 }
+    @media (prefers-color-scheme: dark) { .dev-btn { background:#292524; color:#e7e5e4; border-color:#44403c } }
+    .dev-card.off .dev-btn { background:#d4881f; color:#1c1917; border-color:transparent }
+    .dev-fill { transition: width .5s cubic-bezier(.34,1.56,.64,1) }
+    .dev-card.off .dev-fill { width:0 }
+    .dev-card:not(.off) .dev-fill { width:75% }
+    .dev-card .dev-level::after { content:'75%' } .dev-card.off .dev-level::after { content:'Off' }
+    .dev-card .dev-btn-label::after { content:'Turn off' } .dev-card.off .dev-btn-label::after { content:'Turn on' }
+    .dev-card:not(.off) .dev-badge-state { display:none } .dev-card.off .dev-badge-live { display:none }
+    /* caption reinforces that On is the resting state the schedule set */
+    .dev-cap::after { content:'On, exactly as your schedule set it' } .dev-card.off .dev-cap::after { content:'A wall switch just turned it off\2026' }
+    .dev-card.bump .dev-icon { animation: devPop .45s cubic-bezier(.34,1.56,.64,1) }
+    .dev-card.bump .dev-badge-live, .dev-card.bump .dev-badge-state { animation: valFlash .4s ease }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fx-dot { animation:none } .fx-tilt { transform:none }
+      .fx-rail::after { transform:scaleY(1); animation:none } .fx-rail .tl-item, .fx-rail .tl-item .fx-dot { opacity:1; animation:none }
+      .dev-fill { transition:none }
+      .fx-flash-demo::after { animation:none; opacity:0 }
+    }
+    /* email preview: a shorter crop on phones (the full email is very tall), roomier on desktop */
+    .email-preview { height:24rem } @media (min-width:640px) { .email-preview { height:33rem } }
+    /* mini-calendar: the holiday labels under each date shrink on phones so they
+       don't spill out of the narrow day cells (day numbers keep their size), and
+       the cells get tighter side padding so labels have the full width to sit in */
+    @media (max-width:640px) {
+      .cal-mini [class~="mt-0.5"] { font-size:8px; line-height:1.1 }
+      .cal-mini > div { padding-left:0.25rem; padding-right:0.15rem }
+    }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100 antialiased selection:bg-accent-500/30">
+
+  <!-- ambient background -->
+  <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+    <div class="absolute -top-40 left-1/2 -translate-x-1/2 w-[80rem] h-[80rem] rounded-full bg-gradient-radial from-accent-500/25 dark:from-accent-600/15 via-accent-900/5 to-transparent glow"></div>
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_-10%,rgba(212,136,31,0.20),transparent_48%)] dark:bg-[radial-gradient(circle_at_50%_-10%,rgba(212,136,31,0.12),transparent_45%)]"></div>
+  </div>
+
+  <!-- nav -->
+  <header class="sticky top-0 z-40 backdrop-blur border-b border-stone-200 dark:border-white/5 bg-stone-50/80 dark:bg-stone-950/70">
+    <nav class="max-w-6xl mx-auto px-4 sm:px-5 h-16 flex items-center justify-between gap-2">
+      <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});history.replaceState(null,'',location.pathname);return false;" class="flex items-center gap-2.5 shrink-0">
+        <img src="assets/icon-512.png" alt="" class="w-9 h-9 shadow ring-1 ring-stone-200 dark:ring-white/10" style="border-radius:22.37%">
+        <span class="font-bold text-lg tracking-tight hidden min-[360px]:inline">SmartOneg</span>
+      </a>
+      <div class="flex items-center gap-2 text-base shrink-0">
+        <a href="#features" class="hidden md:inline px-3 py-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition">Features</a>
+        <a href="#devices" class="hidden md:inline px-3 py-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition">Devices</a>
+        <a href="#about" class="hidden md:inline px-3 py-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition">About</a>
+        <a href="docs/" class="px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 ring-1 ring-stone-200 dark:ring-white/10 text-stone-800 dark:text-stone-100 font-medium transition">Docs</a>
+        <a href="https://github.com/moshechaikin/smart-oneg" target="_blank" class="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 ring-1 ring-white/10 text-stone-100 font-medium transition" rel="noopener">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor"><path d="M12 2A10 10 0 0 0 8.84 21.5c.5.08.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.9.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.5 9.5 0 0 1 12 6.8c.85 0 1.7.11 2.5.34 1.9-1.3 2.74-1.03 2.74-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.57.67.48A10 10 0 0 0 12 2z"/></svg>
+          GitHub
+        </a>
+        <a href="demo/" class="px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-400 text-stone-950 font-semibold transition">Live demo</a>
+      </div>
+    </nav>
+  </header>
+
+  <a id="top"></a>
+  <!-- hero -->
+  <section class="max-w-6xl mx-auto px-5 pt-[30px] sm:pt-24 pb-16 text-center">
+    <h1 class="slide-down text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] sm:leading-[1.05]" style="animation-delay:.05s">
+      Your lights, ready for<br><span class="grad-text">Shabbos &amp; Yom&nbsp;Tov</span>
+    </h1>
+    <p class="slide-down mt-6 inline-block px-4 py-1.5 rounded-full bg-accent-500/10 ring-1 ring-accent-500/30 text-accent-700 dark:text-accent-300 text-sm sm:text-[15px] font-semibold" style="animation-delay:.15s">
+      The Ultimate Shabbos &amp; Yom Tov Smart Home Automation App
+    </p>
+    <p class="slide-down mt-6 max-w-2xl mx-auto text-lg sm:text-xl text-stone-600 dark:text-stone-300" style="animation-delay:.23s">
+      SmartOneg locally computes exactly when Shabbos and Yom Tov begin and end for your location (candle lighting, shkia, havdalah, every
+      zman), then drives your lights (and other smart home devices) on a deterministic schedule.
+    </p>
+    <div class="slide-down mt-9 flex flex-wrap items-center justify-center gap-3" style="animation-delay:.31s">
+      <a href="demo/" class="px-6 py-3.5 rounded-2xl bg-accent-500 hover:bg-accent-400 text-stone-950 font-bold text-lg transition shadow-lg shadow-accent-900/20 dark:shadow-accent-900/30">Try the live demo</a>
+      <a href="docs/" class="px-6 py-3.5 rounded-2xl bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 ring-1 ring-stone-200 dark:ring-white/10 font-semibold text-lg transition">Read the docs</a>
+    </div>
+    <p class="slide-down mt-5 text-sm text-stone-500" style="animation-delay:.39s">self-hosted · zmanim computed on-device (<a href="https://github.com/hebcal/hebcal-es6" target="_blank" rel="noopener" class="underline hover:text-stone-700 dark:hover:text-stone-300">Powered by Hebcal</a>), no internet required · free &amp; open source</p>
+  </section>
+
+  <!-- hero screenshot (tilts flat + rises as you scroll) -->
+  <section class="max-w-5xl mx-auto px-5 -mt-2 mb-24" style="perspective: 1600px">
+    <div id="hero-shot" class="rounded-2xl ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/20 dark:shadow-black/50 overflow-hidden bg-stone-100 dark:bg-stone-900 will-change-transform">
+      <picture>
+        <source srcset="assets/screenshots/dashboard-dark.png" media="(prefers-color-scheme: dark)">
+        <img src="assets/screenshots/dashboard.png" width="2720" height="1800" alt="SmartOneg dashboard" class="w-full">
+      </picture>
+    </div>
+  </section>
+
+  <!-- positioning -->
+  <section class="max-w-4xl mx-auto px-5 py-16 text-center reveal">
+    <h2 class="text-2xl sm:text-3xl font-bold">An addition to your smart home, not a replacement</h2>
+    <p class="mt-5 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">
+      Keep using HomeKit, Home Assistant, or whatever you already run. SmartOneg is a dedicated layer for
+      Shabbos and Yom Tov that runs <span class="text-stone-900 dark:text-white font-medium">alongside</span> them, or <span class="text-stone-900 dark:text-white font-medium underline">on its own</span>.
+      While Shabbos/Yom Tov is active, your saved schedule is the single source of truth for the devices it manages.
+    </p>
+  </section>
+
+  <!-- features -->
+  <section id="features" class="max-w-6xl mx-auto px-5 py-16">
+    <h2 class="text-3xl sm:text-4xl font-bold text-center">Everything a Jewish home needs</h2>
+    <p class="mt-3 max-w-2xl mx-auto text-center text-lg text-stone-500 dark:text-stone-400">Built for the realities of the Jewish calendar, down to the edge cases.</p>
+
+    <!-- alternating feature rows — each visual is the real app UI, rebuilt as
+         responsive HTML, floating on a warm 3D tilt (hover to straighten) -->
+    <div class="mt-14 sm:mt-20 space-y-24 sm:space-y-32">
+
+      <!-- 1 · schedules ("set it and forget it") — mockup on the left so the rows alternate -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal md:order-2">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Schedules</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Set it and forget it</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Build the schedule once, for Shabbos and for every Yom Tov (down to each day and its erev), and SmartOneg runs it indefinitely. It tracks candle lighting, shkia (sunset) and havdalah (and every zman) for your location, so there's nothing to reprogram before each Shabbos and Yom Tov.</p>
+        </div>
+        <div class="reveal fx-stage md:order-1">
+          <div class="fx-tilt rev rounded-2xl bg-stone-100 dark:bg-stone-950 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-4">
+            <div class="text-xl font-bold tracking-tight">Schedules</div>
+            <div class="mt-3 grid grid-cols-2 gap-3 text-left" style="zoom:0.8">
+
+              <div class="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-3">
+                <div class="flex items-start justify-between gap-2"><div class="text-[15px] font-semibold leading-tight">Shabbos</div><span class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold border border-stone-300 dark:border-stone-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg> View</span></div>
+                <div class="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Shabbos</div><div class="text-[11px] text-stone-400 leading-tight">18 rules</div></div><span class="hidden sm:inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">+2 variants</span><span class="hidden sm:inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">Guest</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                </div>
+              </div>
+
+              <div class="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-3">
+                <div class="flex items-start justify-between gap-2"><div class="text-[15px] font-semibold leading-tight">Rosh Hashanah</div><span class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold border border-stone-300 dark:border-stone-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg> View</span></div>
+                <div class="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Rosh Hashanah I</div><div class="text-[11px] text-stone-400 leading-tight">14 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Rosh Hashanah II</div><div class="text-[11px] text-stone-400 leading-tight">21 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                </div>
+              </div>
+
+              <div class="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-3">
+                <div class="flex items-start justify-between gap-2"><div class="text-[15px] font-semibold leading-tight">Yom Kippur</div><span class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold border border-stone-300 dark:border-stone-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg> View</span></div>
+                <div class="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Yom Kippur</div><div class="text-[11px] text-stone-400 leading-tight">16 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                </div>
+              </div>
+
+              <div class="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-3">
+                <div class="flex items-start justify-between gap-2"><div class="text-[15px] font-semibold leading-tight">Sukkos</div><span class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold border border-stone-300 dark:border-stone-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg> View</span></div>
+                <div class="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Sukkos I</div><div class="text-[11px] text-stone-400 leading-tight">23 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Sukkos II</div><div class="text-[11px] text-stone-400 leading-tight">12 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Shmini Atzeres</div><div class="text-[11px] text-stone-400 leading-tight">19 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Simchas Torah</div><div class="text-[11px] text-stone-400 leading-tight">15 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                </div>
+              </div>
+
+              <div class="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-3">
+                <div class="flex items-start justify-between gap-2"><div class="text-[15px] font-semibold leading-tight">Pesach</div><span class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold border border-stone-300 dark:border-stone-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg> View</span></div>
+                <div class="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Pesach I</div><div class="text-[11px] text-stone-400 leading-tight">24 rules</div></div><span class="hidden sm:inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">+1 variant</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Pesach II</div><div class="text-[11px] text-stone-400 leading-tight">13 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Pesach VII</div><div class="text-[11px] text-stone-400 leading-tight">17 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Pesach VIII</div><div class="text-[11px] text-stone-400 leading-tight">20 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                </div>
+              </div>
+
+              <div class="rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 p-3">
+                <div class="flex items-start justify-between gap-2"><div class="text-[15px] font-semibold leading-tight">Shavuos</div><span class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold border border-stone-300 dark:border-stone-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg> View</span></div>
+                <div class="mt-2 divide-y divide-stone-100 dark:divide-stone-800">
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Shavuos I</div><div class="text-[11px] text-stone-400 leading-tight">22 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                  <div class="flex items-center gap-2 py-1.5"><div class="flex-1 min-w-0"><div class="text-[13px] font-medium leading-tight truncate">Shavuos II</div><div class="text-[11px] text-stone-400 leading-tight">14 rules</div></div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 shrink-0 text-stone-300 dark:text-stone-600"><path d="m9 18 6-6-6-6"/></svg></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1 · zmanim rules -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Zmanim &amp; fixed-time rules</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Rules that read like plain English</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Build a schedule the way you'd say it: start the Erev Shabbos scene 20 minutes before candle lighting, or dim the den at shkia. A rule can fire right at any zman computed for your location, or a set number of minutes before or after it (candle lighting, shkia, tzeis, alos, neitz, chatzos, plag hamincha, mincha gedola and ketana, sof zman shma and tefilla, havdalah), or at a plain fixed time like 6:00 PM. Either way, the exact clock time is recomputed for you every Shabbos and Yom Tov.</p>
+        </div>
+        <div class="reveal fx-stage">
+          <div class="fx-tilt rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-7">
+            <div class="flex items-center gap-3">
+              <div class="flex-1 rounded-xl border border-stone-200 dark:border-white/10 px-4 py-3 text-[17px] font-medium">Erev Shabbos scene before candle lighting</div>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-stone-400"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-rose-400"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+            </div>
+            <div class="mt-5 flex flex-wrap items-center gap-2.5">
+              <span class="w-14 text-xs font-semibold tracking-wide text-stone-400">WHAT</span>
+              <span class="fx-ctl">Start scene <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="fx-ctl">Erev Shabbos <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-2.5">
+              <span class="w-14 text-xs font-semibold tracking-wide text-stone-400">WHEN</span>
+              <span class="fx-ctl">Relative to a zman <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="fx-ctl">&mdash; <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="text-stone-400 text-sm">hr</span>
+              <span class="fx-ctl !px-5">20</span>
+              <span class="text-stone-400 text-sm">min</span>
+              <span class="fx-ctl">before <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="relative inline-flex">
+                <span class="fx-ctl !text-accent-700 dark:!text-accent-300 font-semibold ring-2 ring-accent-400/50">candle lighting <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-60"><path d="m6 9 6 6 6-6"/></svg></span>
+                <!-- the zman picker, shown open and deliberately spilling past the card edge, dissolving toward the bottom -->
+                <span class="fx-menu block absolute left-0 top-full mt-2 w-60 max-w-[calc(100vw-3rem)] z-20 rounded-xl bg-white dark:bg-stone-800 ring-1 ring-stone-200 dark:ring-white/10 shadow-xl shadow-black/15 dark:shadow-black/50 py-1.5 text-[15px]" style="-webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent);mask-image:linear-gradient(to bottom,#000 55%,transparent)">
+                  <span class="flex items-center gap-2 px-3.5 py-1.5 bg-accent-50 dark:bg-accent-500/15 text-accent-700 dark:text-accent-300 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="w-4 h-4"><path d="M20 6 9 17l-5-5"/></svg> Candle lighting</span>
+                  <span class="block px-3.5 py-1.5 text-stone-600 dark:text-stone-300">Shkia (sunset)</span>
+                  <span class="block px-3.5 py-1.5 text-stone-600 dark:text-stone-300">Havdalah</span>
+                  <span class="block px-3.5 py-1.5 text-stone-600 dark:text-stone-300">Chatzos of the night</span>
+                </span>
+              </span>
+            </div>
+            <div class="mt-5 flex items-center gap-1.5 text-sm text-stone-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="m9 18 6-6-6-6"/></svg> Fine-tuning</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 · seasonal / fine-tuning -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal md:order-2">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Fine-tuning</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Handles early Shabbos and the seasons</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Summer Fridays and short winter afternoons are worlds apart, and so is an early Shabbos, when candle lighting can be well before shkia. Clamp a rule so it never fires before or after a set wall-clock time, add a don't-fire condition, or branch on the season: if shkia is after 7:00 PM, fire at a fixed time instead. The right thing happens whether Shabbos comes in at 4:15 or 8:30.</p>
+        </div>
+        <div class="reveal fx-stage md:order-1">
+          <div class="fx-tilt rev rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-7">
+            <div class="flex items-center gap-2 text-sm font-medium"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="m6 9 6 6 6-6"/></svg> Fine-tuning <span class="fx-badge fx-on">active</span></div>
+            <div class="mt-4 grid grid-cols-2 gap-4">
+              <div><div class="text-sm text-stone-400 mb-1.5">Never earlier than</div><div class="fx-ctl w-full justify-between">--:-- <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4 opacity-40"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div></div>
+              <div><div class="text-sm text-stone-400 mb-1.5">Never later than</div><div class="fx-ctl w-full justify-between">--:-- <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4 opacity-40"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div></div>
+            </div>
+            <div class="mt-4 text-sm text-stone-400 mb-2">Seasonal conditions</div>
+            <div class="rounded-xl border border-stone-200 dark:border-white/10 p-4 space-y-2.5">
+              <div class="flex flex-wrap items-center gap-2 text-[15px]"><span class="text-stone-400">If</span><span class="fx-ctl">shkia (sunset)</span><span class="fx-ctl">is after</span><span class="fx-ctl">07:00 PM</span></div>
+              <div class="flex flex-wrap items-center gap-2 text-[15px]"><span class="text-stone-400">then</span><span class="fx-ctl">fire</span><span class="fx-ctl">at a fixed time</span><span class="fx-ctl">06:00 PM</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 · situations -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Situations</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Every situation the calendar throws at you</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">A regular Shabbos or Yom Tov isn't the only kind of day. Some years the calendar does something unusual, and you can give that its own schedule: the years Erev Pesach or Erev Shavuos lands on Shabbos, the Shabbos right after a Friday Yom Tov, a Shabbos Chol Hamoed Pesach or Sukkos, Shabbos Chanukah, or the years a day of Yom Tov itself falls on Shabbos. SmartOneg picks the matching one automatically the years it applies, then falls back to your Regular schedule the rest of the time.</p>
+        </div>
+        <div class="reveal fx-stage">
+          <div class="fx-tilt rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-7">
+            <div class="text-stone-400 font-medium">Situation</div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-accent-600 text-white">Regular</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700">Erev Pesach</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700">Erev Shavuos</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700">After Friday Yom Tov</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700">Chol Hamoed Pesach</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700">Chol Hamoed Sukkos</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-300 dark:border-stone-700">Shabbos Chanukah</span>
+              <span class="rounded-xl px-3.5 py-2 text-sm font-semibold bg-white dark:bg-stone-800 text-sky-700 dark:text-sky-300 border border-stone-300 dark:border-stone-700 inline-flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> Guest mode</span>
+            </div>
+            <div class="mt-5 flex items-start gap-2 text-sm text-stone-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4 mt-0.5 shrink-0"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>Used whenever no special situation below applies.<span class="block mt-1 font-medium text-accent-700 dark:text-accent-400 underline decoration-dotted underline-offset-2">Next: July 25, 2026.</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 · scenes -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal md:order-2">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Scenes</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Save a scene, use it across your rules</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">A scene is a named set of devices and levels, like &ldquo;Erev Shabbos&rdquo; or &ldquo;Late night dim,&rdquo; that any rule can trigger. Preview it live on your real lights before you rely on it, and extend one scene from another so a &ldquo;Seder night&rdquo; builds on your &ldquo;Mealtime&rdquo; base. Change a scene once and every rule (or base scene) that uses it follows automatically.</p>
+        </div>
+        <div class="reveal fx-stage md:order-1">
+          <div class="fx-tilt rev rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-7">
+            <div class="flex items-center justify-between">
+              <div class="text-xl font-semibold">Erev Shabbos</div>
+              <div class="flex items-center gap-3 text-stone-400">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-accent-500"><path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              </div>
+            </div>
+            <div class="mt-4 divide-y divide-stone-100 dark:divide-white/5 text-[15px]">
+              <div class="flex items-center justify-between py-3"><span>Living Room Main Lights</span><span class="fx-badge fx-on">On · 100%</span></div>
+              <div class="flex items-center justify-between py-3"><span>Dining Room Main Lights</span><span class="fx-badge fx-on">On · 100%</span></div>
+              <div class="flex items-center justify-between py-3"><span>Kitchen Main Lights</span><span class="fx-badge fx-on">On · 100%</span></div>
+              <div class="flex items-center justify-between py-3"><span>Dining Room Chandelier</span><span class="fx-badge fx-on">80%</span></div>
+              <div class="flex items-center justify-between py-3"><span>Front Foyer Lights</span><span class="fx-badge fx-on">60%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 · timeline preview (the signature: glowing amber dots) -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Timeline preview</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">See exactly what will happen</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Whether you're building a schedule or just checking the one you saved, SmartOneg resolves it into a minute-by-minute timeline of real timestamps, every light change laid out in order for the very next Shabbos or a rare situation decades away. No guessing and no surprises after shkia.</p>
+        </div>
+        <div class="reveal fx-stage">
+          <div class="fx-tilt rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-8">
+            <div class="fx-rail relative ml-2.5 pl-7 space-y-7">
+              <div class="tl-item relative"><span class="fx-dot absolute -left-[2.35rem] top-1"></span>
+                <div class="text-[15px]"><b>6:23 PM</b> <span class="text-stone-400">· 1 hour before shkia</span></div>
+                <div class="mt-1 flex items-center gap-2 text-[15px]"><span class="font-medium">Refrigerator Sabbath Mode</span> <span class="fx-badge fx-on">On</span></div>
+              </div>
+              <div class="tl-item relative"><span class="fx-dot absolute -left-[2.35rem] top-1"></span>
+                <div class="text-[15px]"><b>7:05 PM</b> <span class="text-stone-400">· at candle lighting</span></div>
+                <div class="mt-3 rounded-xl border border-stone-200 dark:border-white/10 bg-stone-50 dark:bg-white/[0.03] p-4">
+                  <div class="flex items-center gap-2 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Scene Start: Erev Shabbos</div>
+                  <div class="mt-3 space-y-2 text-[15px]">
+                    <div class="flex items-center gap-2"><span>Living Room Main Lights</span><span class="fx-badge fx-on">On · 100%</span></div>
+                    <div class="flex items-center gap-2"><span>Kitchen Main Lights</span><span class="fx-badge fx-on">On · 100%</span></div>
+                    <div class="flex items-center gap-2"><span>Dining Room Chandelier</span><span class="fx-badge fx-on">80%</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="tl-item relative"><span class="fx-dot absolute -left-[2.35rem] top-1"></span>
+                <div class="text-[15px]"><b>8:04 PM</b> <span class="text-stone-400">· at tzeis (nightfall)</span></div>
+                <div class="mt-1 flex items-center gap-2 text-[15px]"><span class="font-medium">Kitchen Secondary Lights</span> <span class="fx-badge fx-on">On</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 · flash reminders -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal md:order-2">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Flash reminders</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Blink the lights as a reminder</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Got a 2:00 mincha every Shabbos? Set a flash reminder to blink the dining room lights once or twice right at 2:00, a nudge in the middle of the seudah. Anchor it to a plain fixed time, or at, before, or after any zman.</p>
+        </div>
+        <div class="reveal fx-stage fx-flash-demo md:order-1">
+          <div class="fx-tilt rev rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-7">
+            <div class="rounded-xl border border-stone-200 dark:border-white/10 px-4 py-3 text-[17px] font-medium">Mincha reminder</div>
+            <div class="mt-5 flex flex-wrap items-center gap-2.5">
+              <span class="w-14 text-xs font-semibold tracking-wide text-stone-400">WHAT</span>
+              <span class="fx-ctl">Flash (reminder) <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="fx-ctl">Dining Room Main Lights + 1 more <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="fx-ctl">twice <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-2.5">
+              <span class="w-14 text-xs font-semibold tracking-wide text-stone-400">WHEN</span>
+              <span class="fx-ctl">At a fixed time <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></span>
+              <span class="fx-ctl !px-4">2:00 PM</span>
+            </div>
+            <div class="mt-4 text-sm text-stone-400">A quick reminder blink, right in the middle of the seudah.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7 · child lock -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Child Lock</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Lights stay where you set them</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">On Shabbos and Yom Tov, lights may get changed by accident: a child presses a wall switch, or another automation in your home fires and flips one on. Turn on Child Lock for any device and SmartOneg keeps watch, so the moment a light lands in a state it shouldn't be in, it's set back to where your schedule wants it (after a short grace period), no matter what changed it.</p>
+          <p class="mt-3 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">It's not a lockout, and the light behaves normally the rest of the week. For the times a light genuinely needs to change, a deliberate escape hatch hands control to a non-Jewish helper: they press the switch a set number of times in a row, the light flashes twice to confirm the override has taken hold, and it then stays exactly where they leave it until havdalah.</p>
+        </div>
+        <div class="reveal fx-stage">
+          <div id="cl-card" class="dev-card fx-tilt rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-2.5 sm:p-3 max-w-md mx-auto">
+            <!-- one compact device ROW, exactly as the Devices page now renders it:
+                 icon + name/edit, pills ABOVE, slider + button + flash below -->
+            <div class="dev-row flex gap-3 rounded-xl px-3 py-3">
+              <div class="dev-icon w-11 h-11 rounded-xl grid place-items-center shrink-0 self-start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-6 h-6"><path d="M9 18h6M10 22h4M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5"/></svg></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-start gap-2">
+                  <div class="flex-1 min-w-0 text-[17px] font-semibold leading-snug">Dining Room Main Lights</div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 shrink-0 mt-1 text-stone-400"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                </div>
+                <!-- pills sit ABOVE the controls -->
+                <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span class="fx-badge fx-on dev-badge-live">On</span>
+                  <span class="fx-badge fx-off dev-badge-state">Off</span>
+                  <span class="fx-badge" style="background:#dbeafe;color:#1d4ed8">Lutron</span>
+                  <span class="fx-badge fx-off">Dimmer</span>
+                  <span class="fx-badge fx-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="w-3.5 h-3.5"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Child Lock</span>
+                </div>
+                <!-- slider + Turn off/on + flash: one line normally; the controls
+                     wrap on very narrow phones so the card shrinks instead of overflowing -->
+                <div class="mt-2.5 flex flex-wrap items-center gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-20 h-2 rounded-full bg-stone-200 dark:bg-white/10 relative"><div class="dev-fill h-2 rounded-full bg-accent-600 relative"><span class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-[18px] h-[18px] rounded-full bg-white dark:bg-stone-100 border-2 border-accent-600 dark:border-accent-500 shadow"></span></div></div>
+                    <span class="dev-level text-stone-400 text-xs font-semibold tabular-nums w-8 text-right shrink-0"></span>
+                  </div>
+                  <div class="dev-btn rounded-xl font-semibold px-3 py-1.5 text-sm inline-flex items-center gap-1.5 shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg> <span class="dev-btn-label"></span></div>
+                  <div class="rounded-xl border border-stone-200 dark:border-white/10 px-2.5 py-1.5 inline-flex items-center text-stone-400 shrink-0"><svg viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg></div>
+                </div>
+              </div>
+            </div>
+            <div class="dev-cap mt-3 text-center text-sm text-stone-400 dark:text-stone-500"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8 · calendar / yom tov awareness -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal md:order-2">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Calendar</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Every Shabbos and Yom Tov, years ahead</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">A built-in calendar lays out every candle lighting, shkia and havdalah, computed on-device for your exact location, and behind it the app handles multi-day clusters, second days, and rare cases like a Yom Tov on Shabbos or one that starts motzei Shabbos.</p>
+          <p class="mt-3 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">From the calendar, click on any Shabbos or Yom Tov, years back or years ahead to open its full preview timeline and confirm your setup holds up for every scenario: a short winter Friday, a long summer Shabbos, Erev Pesach on Shabbos, or two days of Yom Tov running into Shabbos (three-day Yom Tov).</p>
+        </div>
+        <div class="reveal fx-stage md:order-1">
+          <div class="fx-tilt rev rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-4 sm:p-5">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-semibold text-[15px]">September 2026</div>
+              <div class="flex items-center gap-1 text-stone-400">
+                <span class="w-7 h-7 rounded-lg grid place-items-center ring-1 ring-stone-200 dark:ring-white/10"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="m15 18-6-6 6-6"/></svg></span>
+                <span class="w-7 h-7 rounded-lg grid place-items-center ring-1 ring-stone-200 dark:ring-white/10"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="m9 18 6-6-6-6"/></svg></span>
+              </div>
+            </div>
+            <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-semibold text-stone-400 mb-2">
+              <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Shab</div>
+            </div>
+            <div class="grid grid-cols-7 gap-1.5 text-[13px] cal-mini">
+              <div class="rounded-lg h-16 p-1.5 text-stone-300 dark:text-stone-600"></div>
+              <div class="rounded-lg h-16 p-1.5 text-stone-300 dark:text-stone-600"></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">1</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">2</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">3</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-dashed ring-accent-300 dark:ring-accent-500/40 bg-accent-50/60 dark:bg-accent-500/10"><div class="font-semibold text-accent-700 dark:text-accent-300">4</div><div class="text-[10px] text-accent-700/80 dark:text-accent-300/80 leading-tight mt-0.5">Erev Shabbos</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">5</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">Shabbos</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">6</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">7</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">8</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">9</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">10</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-dashed ring-accent-300 dark:ring-accent-500/40 bg-accent-50/60 dark:bg-accent-500/10"><div class="font-semibold text-accent-700 dark:text-accent-300">11</div><div class="text-[10px] text-accent-700/80 dark:text-accent-300/80 leading-tight mt-0.5">Erev RH</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">12</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">Rosh Hashanah</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">13</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">RH II</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-teal-600 dark:text-teal-400">14<div class="text-[10px] leading-tight mt-0.5">Tzom Gedalia</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">15</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">16</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">17</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-dashed ring-accent-300 dark:ring-accent-500/40 bg-accent-50/60 dark:bg-accent-500/10"><div class="font-semibold text-accent-700 dark:text-accent-300">18</div><div class="text-[10px] text-accent-700/80 dark:text-accent-300/80 leading-tight mt-0.5">Erev Shabbos</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">19</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">Shabbos</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-dashed ring-accent-300 dark:ring-accent-500/40 bg-accent-50/60 dark:bg-accent-500/10"><div class="font-semibold text-accent-700 dark:text-accent-300">20</div><div class="text-[10px] text-accent-700/80 dark:text-accent-300/80 leading-tight mt-0.5">Erev Yom Kippur</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">21</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">Yom Kippur</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">22</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">23</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-stone-100 dark:ring-white/5 text-stone-500">24</div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-dashed ring-accent-300 dark:ring-accent-500/40 bg-accent-50/60 dark:bg-accent-500/10"><div class="font-semibold text-accent-700 dark:text-accent-300">25</div><div class="text-[10px] text-accent-700/80 dark:text-accent-300/80 leading-tight mt-0.5">Erev Sukkos</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">26</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">Sukkos I</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-300 dark:ring-accent-500/50 bg-accent-100/70 dark:bg-accent-500/15"><div class="font-semibold text-accent-800 dark:text-accent-200">27</div><div class="text-[10px] text-accent-800/80 dark:text-accent-200/80 leading-tight mt-0.5">Sukkos II</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-200/60 dark:ring-accent-500/25 bg-accent-50/40 dark:bg-accent-500/[0.06]"><div class="font-medium text-accent-600 dark:text-accent-300/90">28</div><div class="text-[10px] text-accent-600/70 dark:text-accent-300/70 leading-tight mt-0.5">Chol Hamoed</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-200/60 dark:ring-accent-500/25 bg-accent-50/40 dark:bg-accent-500/[0.06]"><div class="font-medium text-accent-600 dark:text-accent-300/90">29</div><div class="text-[10px] text-accent-600/70 dark:text-accent-300/70 leading-tight mt-0.5">Chol Hamoed</div></div>
+              <div class="rounded-lg h-16 p-1.5 ring-1 ring-accent-200/60 dark:ring-accent-500/25 bg-accent-50/40 dark:bg-accent-500/[0.06]"><div class="font-medium text-accent-600 dark:text-accent-300/90">30</div><div class="text-[10px] text-accent-600/70 dark:text-accent-300/70 leading-tight mt-0.5">Chol Hamoed</div></div>
+              <div class="rounded-lg h-16 p-1.5 text-stone-300 dark:text-stone-600"></div>
+              <div class="rounded-lg h-16 p-1.5 text-stone-300 dark:text-stone-600"></div>
+              <div class="rounded-lg h-16 p-1.5 text-stone-300 dark:text-stone-600"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8.5 · Yom Tov overview page (faded) -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Yom Tov at a glance</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">The whole Yom Tov on one page</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Open any Yom Tov to see it whole on one page: a mini-calendar of its days, the candle lighting, shkia and havdalah that bound it, and each day of the Yom Tov laid out with its own schedule. Click any day to jump into editing it, print a one-page zmanim sheet for the whole Yom Tov, or scroll the full timeline preview from erev to havdalah.</p>
+        </div>
+        <div class="reveal fx-stage">
+          <div class="fx-tilt rounded-2xl overflow-hidden ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 bg-white dark:bg-stone-900">
+            <picture>
+              <source srcset="assets/screenshots/features/festival-overview-dark.png" media="(prefers-color-scheme: dark)">
+              <img src="assets/screenshots/features/festival-overview.png" width="1728" height="1156" alt="A Yom Tov overview page: mini-calendar, zmanim for each day, and the full schedule" class="w-full block" loading="lazy">
+            </picture>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9 · notifications (real email, faded) -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal md:order-2">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Notifications</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">The whole schedule, a week ahead</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">About a week before every Yom Tov (you choose how many days prior), SmartOneg emails you the full plan: candle lighting, shkia and havdalah for each part of Yom Tov, and the complete light schedule laid out device by device from erev to havdalah so you can look it over. Shorter alerts (like a bridge dropping offline or a backup instance taking over), can also reach you by <a href="https://ntfy.sh" target="_blank" rel="noopener" class="underline hover:text-accent-600 dark:hover:text-accent-400">ntfy</a> or web push.</p>
+        </div>
+        <div class="reveal fx-stage md:order-1">
+          <div class="fx-tilt rev rounded-2xl overflow-hidden ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 bg-white">
+            <div class="fx-fade overflow-hidden email-preview">
+              <img src="assets/screenshots/features/email-summary.png" width="1200" height="2800" alt="A pre-Yom Tov summary email: candle lighting, shkia and havdalah for each part of Pesach, and the full light schedule from erev to havdalah" class="w-full" loading="lazy">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10 · printable zmanim PDF (faded) -->
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+        <div class="reveal">
+          <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Printable zmanim</div>
+          <h3 class="mt-2 text-2xl sm:text-3xl font-bold">A print-ready sheet for every Yom Tov</h3>
+          <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">One click generates a clean, one-page zmanim sheet: a full-year Shabbos schedule, a per-Yom-Tov sheet, or a Sefiras HaOmer chart, all computed for your location (in English or Hebrew). Each Yom Tov's sheet is also attached to the summary email a week ahead, so it's already in your inbox, ready to print for Yom Tov.</p>
+        </div>
+        <div class="reveal fx-stage">
+          <div class="fx-tilt rounded-2xl overflow-hidden ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 bg-white">
+            <!-- Height tracks the sheet's width so ~3/4 of the page always shows then
+                 fades, at any screen size (a fixed height showed the whole short
+                 sheet on mobile). Capped so desktop stays the same as before. -->
+            <div class="fx-fade overflow-hidden relative bg-white" style="aspect-ratio:1198/1220;max-height:30rem">
+              <img class="pdf-slide on" src="assets/screenshots/features/rosh-hashanah-pdf.png" width="1198" height="1627" alt="A printable one-page zmanim sheet for Rosh Hashanah" loading="lazy">
+              <img class="pdf-slide" src="assets/screenshots/features/yom-kippur-pdf.png" width="1198" height="1627" alt="A printable one-page zmanim sheet for Yom Kippur" loading="lazy">
+              <img class="pdf-slide" src="assets/screenshots/features/sukkos-pdf.png" width="1198" height="1628" alt="A printable one-page zmanim sheet for Sukkos" loading="lazy">
+              <img class="pdf-slide" src="assets/screenshots/features/pesach-pdf.png" width="1198" height="1627" alt="A printable one-page zmanim sheet for Pesach" loading="lazy">
+              <img class="pdf-slide" src="assets/screenshots/features/shavuos-pdf.png" width="1198" height="1628" alt="A printable one-page zmanim sheet for Shavuos" loading="lazy">
+              <img class="pdf-slide" src="assets/screenshots/features/omer-pdf.png" width="1198" height="1628" alt="A printable Sefiras HaOmer counting chart" loading="lazy">
+              <img class="pdf-slide" src="assets/screenshots/features/shabbos-pdf.png" width="1165" height="1611" alt="A printable full-year Shabbos zmanim sheet" loading="lazy">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- guest & away: full-width band -->
+    <div class="mt-28 reveal rounded-3xl p-8 sm:p-12 bg-gradient-to-br from-accent-500/10 dark:from-accent-600/15 to-transparent ring-1 ring-accent-500/20">
+      <div class="max-w-3xl mx-auto text-center">
+        <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Hosting &amp; travel</div>
+        <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Guest mode and Away mode</h3>
+        <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Hosting for one Shabbos? Override the schedule for specific devices without disturbing your regular setup. Traveling? Away mode runs a presence-simulated version of your own schedule, with jittered times and rooms varying night to night, so the house looks lived-in, and only ever during Shabbos and Yom Tov.</p>
+      </div>
+      <div class="mt-8 grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+        <div class="reveal rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30 p-5">
+          <div class="flex items-center gap-2.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-6 h-6 text-stone-400"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg><div class="font-semibold text-[16px]">Guest mode is off</div></div>
+          <p class="mt-2 text-sm text-stone-500 dark:text-stone-400">Override the regular schedule for specific devices, just for the next Shabbos/Yom Tov.</p>
+          <div class="mt-3 inline-block rounded-lg ring-1 ring-stone-200 dark:ring-white/10 px-4 py-1.5 text-sm font-medium">Turn on</div>
+        </div>
+        <div class="reveal rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30 p-5">
+          <div class="flex items-center gap-2.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-6 h-6 text-stone-400"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg><div class="font-semibold text-[16px]">Away mode is off</div></div>
+          <p class="mt-2 text-sm text-stone-500 dark:text-stone-400">Away for Shabbos/Yom Tov? Make your lights look lived-in (a randomized version of your own schedule).</p>
+          <div class="mt-3 inline-block rounded-lg ring-1 ring-stone-200 dark:ring-white/10 px-4 py-1.5 text-sm font-medium">Set up</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- peace of mind: failover -->
+    <div class="mt-20 sm:mt-28 grid md:grid-cols-2 gap-8 lg:gap-16 items-center">
+      <div class="reveal">
+        <div class="text-sm font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-400">Peace of mind</div>
+        <h3 class="mt-2 text-2xl sm:text-3xl font-bold">Keeps running when things go wrong</h3>
+        <p class="mt-4 text-lg text-stone-600 dark:text-stone-300 leading-relaxed">Run a second copy on a spare device as a hot backup: it mirrors your settings and takes over the lights on its own if the main instance goes down, then hands control back when it returns. Your whole configuration also snapshots to a single file every night, so nothing is ever one bad reboot away from lost.</p>
+      </div>
+      <div class="reveal fx-stage">
+        <div class="fx-tilt rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 shadow-2xl shadow-black/10 dark:shadow-black/50 p-6 sm:p-7">
+          <div class="flex items-center gap-2 text-lg font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-stone-400"><rect x="2" y="4" width="20" height="7" rx="1"/><rect x="2" y="13" width="20" height="7" rx="1"/><path d="M6 8h.01M6 17h.01"/></svg> Primary &amp; Backup Instance</div>
+          <div class="mt-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 ring-1 ring-emerald-200 dark:ring-emerald-500/30 p-4 flex items-start gap-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.8" class="w-6 h-6 shrink-0"><rect x="2" y="4" width="20" height="7" rx="1"/><rect x="2" y="13" width="20" height="7" rx="1"/><path d="M6 8h.01M6 17h.01"/></svg>
+            <div><div class="font-bold">You are looking at the PRIMARY instance</div><div class="text-sm text-stone-500 dark:text-stone-400 mt-0.5">It controls the lights. A standby instance (e.g. on a Raspberry Pi) can mirror it and take over automatically.</div></div>
+          </div>
+          <div class="mt-4 text-sm text-stone-400 mb-1.5">Role of this instance</div>
+          <div class="fx-ctl w-full justify-between">Primary, this instance runs the lights <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 opacity-40"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- and a lot more -->
+    <h3 class="mt-24 text-center text-2xl font-bold">And a lot more</h3>
+    <div class="mt-10 grid sm:grid-cols-2 gap-6">
+      <!-- test mode -->
+      <figure class="reveal rounded-2xl p-3 sm:p-4 bg-stone-100/70 dark:bg-white/[0.04] ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30">
+        <div class="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 p-4 space-y-3">
+          <div class="flex items-center gap-2 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Test mode</div>
+          <div><div class="text-[11px] font-semibold tracking-wide text-stone-400 mb-1">EVENT TO SIMULATE</div><div class="fx-ctl w-full justify-between !py-2 text-sm">Shabbos · Jul 24, 2026 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></div></div>
+          <div><div class="text-[11px] font-semibold tracking-wide text-stone-400 mb-1">JUMP TO JUST BEFORE</div><div class="fx-ctl w-full justify-between !py-2 text-sm">Candle lighting · 8:08 PM <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></div></div>
+          <div class="w-full rounded-xl bg-accent-500 text-stone-950 font-semibold py-2 text-sm text-center inline-flex items-center justify-center gap-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg> Start test mode</div>
+        </div>
+        <figcaption class="mt-3 px-1 text-sm text-stone-500 dark:text-stone-400"><span class="font-semibold text-stone-700 dark:text-stone-200">Test mode.</span> Rehearse a real upcoming Shabbos or Yom Tov on your actual lights on a virtual clock, so you can watch everything fire before it counts.</figcaption>
+      </figure>
+      <!-- location & halachic times -->
+      <figure class="reveal rounded-2xl p-3 sm:p-4 bg-stone-100/70 dark:bg-white/[0.04] ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30">
+        <div class="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 p-4 space-y-3">
+          <div class="flex items-center gap-2 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Location &amp; halachic times</div>
+          <div><div class="text-[11px] font-semibold tracking-wide text-stone-400 mb-1">ZIP CODE</div><div class="fx-ctl w-full !py-2 text-sm">21209</div></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><div class="text-[11px] font-semibold tracking-wide text-stone-400 mb-1">CANDLE (MIN)</div><div class="fx-ctl w-full !py-2 text-sm">18</div></div>
+            <div><div class="text-[11px] font-semibold tracking-wide text-stone-400 mb-1">HAVDALAH (MIN)</div><div class="fx-ctl w-full !py-2 text-sm">45</div></div>
+          </div>
+          <div><div class="text-[11px] font-semibold tracking-wide text-stone-400 mb-1">HOLIDAY-NAME STYLE</div><div class="fx-ctl w-full justify-between !py-2 text-sm">Ashkenazi (Shabbos, Sukkos) <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        </div>
+        <figcaption class="mt-3 px-1 text-sm text-stone-500 dark:text-stone-400"><span class="font-semibold text-stone-700 dark:text-stone-200">Your zmanim, your minhag.</span> Zip-based location (no internet required), or fine-tune the exact (lat., long.) coordinates for precise zmanim; plus candle/havdalah minutes, Israel mode, and Ashkenazi/Sephardic/Hebrew name styles.</figcaption>
+      </figure>
+      <!-- copy rules (matches the real "Copy rules from…" modal) -->
+      <figure class="reveal rounded-2xl p-3 sm:p-4 bg-stone-100/70 dark:bg-white/[0.04] ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30">
+        <div class="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 p-4 space-y-3">
+          <div class="flex items-center gap-2 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy rules from…</div>
+          <p class="text-sm text-stone-500 dark:text-stone-400 leading-relaxed">Imports the chosen schedule's Erev rules into this Erev section. Nothing is saved until you press Save schedule.</p>
+          <div class="fx-ctl w-full justify-between !py-2 text-sm">Shabbos · Erev Pesach (4 rules) <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="flex justify-end gap-2 pt-1">
+            <div class="fx-ctl !py-2 text-sm">Cancel</div>
+            <div class="inline-flex items-center justify-center rounded-xl bg-accent-500 text-stone-950 font-semibold px-4 py-2 text-sm">Copy rules</div>
+          </div>
+        </div>
+        <figcaption class="mt-3 px-1 text-sm text-stone-500 dark:text-stone-400"><span class="font-semibold text-stone-700 dark:text-stone-200">Reuse your work.</span> Copy a day's rules into another situation, or inherit the Regular schedule and tweak just what differs.</figcaption>
+      </figure>
+      <!-- backup & restore -->
+      <figure class="reveal rounded-2xl p-3 sm:p-4 bg-stone-100/70 dark:bg-white/[0.04] ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30">
+        <div class="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 p-4 space-y-3">
+          <div class="flex items-center gap-2 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2"/></svg> Backup &amp; Restore</div>
+          <p class="text-sm text-stone-500 dark:text-stone-400 leading-relaxed">Your whole configuration lives in one file. Export it any time, and the app also snapshots it automatically every night (the last 14 days are kept).</p>
+          <div class="flex flex-wrap gap-2">
+            <div class="fx-ctl !py-2 text-sm inline-flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export current config <span class="ml-1 pl-2 border-l border-stone-300 dark:border-white/15"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-50"><path d="m6 9 6 6 6-6"/></svg></span></div>
+            <div class="fx-ctl !py-2 text-sm inline-flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg> Import</div>
+          </div>
+          <div class="pt-3 border-t border-stone-200 dark:border-white/10">
+            <div class="font-medium text-sm mb-2">Nightly backups</div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="fx-ctl justify-between !py-2 text-sm">2026-07-24 · 119 KB <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3 h-3 opacity-40"><path d="m6 9 6 6 6-6"/></svg></div>
+              <div class="fx-ctl !py-2 text-sm inline-flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Download</div>
+              <div class="fx-ctl !py-2 text-sm !text-rose-600 dark:!text-rose-400">Restore…</div>
+            </div>
+          </div>
+        </div>
+        <figcaption class="mt-3 px-1 text-sm text-stone-500 dark:text-stone-400"><span class="font-semibold text-stone-700 dark:text-stone-200">Backup &amp; restore.</span> Your entire setup in one file, exported any time and snapshotted automatically every night.</figcaption>
+      </figure>
+      <!-- software updates -->
+      <figure class="reveal rounded-2xl p-3 sm:p-4 bg-stone-100/70 dark:bg-white/[0.04] ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30">
+        <div class="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 p-4 space-y-3">
+          <div class="flex items-center gap-2 font-semibold"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Software updates</div>
+          <div class="flex flex-wrap items-center gap-x-6 gap-y-1 text-[15px]">
+            <div><span class="text-stone-500">Installed: </span><b>v1.0.0</b></div>
+            <div><span class="text-stone-500">Latest: </span><b>v1.0.0</b></div>
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[13px] font-medium leading-none bg-stone-200 text-stone-600 dark:bg-stone-800 dark:text-stone-400">Up to date</span>
+          </div>
+          <div class="flex flex-wrap gap-2.5 items-center">
+            <div class="fx-ctl !py-2 text-sm">Check now</div>
+          </div>
+          <div class="pt-3 border-t border-stone-200 dark:border-white/10">
+            <label class="flex items-center gap-3 text-[15px] text-stone-700 dark:text-stone-200">
+              <span class="w-5 h-5 rounded bg-accent-600 inline-flex items-center justify-center shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" class="w-3.5 h-3.5"><path d="M20 6 9 17l-5-5"/></svg></span>
+              Automatically check for updates
+            </label>
+            <p class="text-sm text-stone-400 mt-3">Your data in the ./data volume is never touched by an update.</p>
+          </div>
+        </div>
+        <figcaption class="mt-3 px-1 text-sm text-stone-500 dark:text-stone-400"><span class="font-semibold text-stone-700 dark:text-stone-200">Stay current.</span> SmartOneg checks for new releases in the background and updates in one click when one is out, or hands you the exact command to run yourself (see docs).</figcaption>
+      </figure>
+      <!-- installable PWA -->
+      <figure class="reveal rounded-2xl p-3 sm:p-4 bg-stone-100/70 dark:bg-white/[0.04] ring-1 ring-stone-200 dark:ring-white/10 shadow-lg shadow-black/5 dark:shadow-black/30">
+        <div class="rounded-2xl bg-white dark:bg-stone-900 ring-1 ring-stone-200 dark:ring-white/10 p-4">
+          <div class="flex items-center gap-2 font-semibold mb-4"><svg viewBox="0 0 24 24" fill="none" stroke="#d4881f" stroke-width="2" class="w-5 h-5"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18.5h2"/></svg> Access it on the go</div>
+          <img src="assets/screenshots/PWA-demo.jpg" alt="SmartOneg installed on a phone's home screen" width="303" height="309" class="mx-auto block rounded-2xl w-full max-w-[220px] ring-1 ring-stone-200 dark:ring-white/10 shadow-sm" loading="lazy">
+        </div>
+        <figcaption class="mt-3 px-1 text-sm text-stone-500 dark:text-stone-400"><span class="font-semibold text-stone-700 dark:text-stone-200">Access it on the go.</span> Install SmartOneg to your phone and it runs like a native app, staying signed in for months. Opt in to push notifications for bridge disconnects, failover, and guest-mode changes.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- devices -->
+  <section id="devices" class="max-w-6xl mx-auto px-5 py-16 reveal">
+    <h2 class="text-3xl sm:text-4xl font-bold text-center">Works with your devices</h2>
+    <p class="mt-3 text-center text-stone-500 dark:text-stone-400 max-w-2xl mx-auto">Native Lutron Caseta, plus bridges to just about everything else.</p>
+
+    <p class="mt-10 text-center text-xs font-semibold uppercase tracking-wider text-stone-400">Connect through</p>
+    <div class="mt-4 flex flex-wrap justify-center gap-3">
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">Lutron Caseta</span>
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">Home Assistant</span>
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">Homebridge</span>
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">Hubitat</span>
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">Matter</span>
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">Ecobee</span>
+      <span class="px-4 py-2 rounded-full bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 text-sm shadow-sm dark:shadow-none">EnvisaLink alarm</span>
+    </div>
+
+    <p class="mt-10 text-center text-xs font-semibold uppercase tracking-wider text-stone-400">Control any of these</p>
+    <div class="mt-4 flex flex-wrap justify-center gap-2.5">
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Lights &amp; dimmers</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Smart plugs</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Shades &amp; blinds</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Fans</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Thermostats</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Locks</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Robot vacuums</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Fridge Sabbath mode</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Alarm arm &amp; bypass</span>
+      <span class="px-3.5 py-1.5 rounded-full bg-accent-50 dark:bg-accent-500/10 ring-1 ring-accent-200 dark:ring-accent-500/25 text-sm text-accent-800 dark:text-accent-200">Automations &amp; scenes</span>
+    </div>
+    <p class="mt-8 text-center text-stone-600 dark:text-stone-300 max-w-3xl mx-auto">
+      Anything Home Assistant supports beyond these runs through an HA automation or script that SmartOneg can <span class="font-medium text-stone-900 dark:text-white">run, enable, or disable</span> on your Shabbos and Yom Tov schedule.
+      For example: disable a motion-triggered light sensor before candle lighting and re-enable it after havdalah.
+    </p>
+    <div class="mt-10 max-w-3xl mx-auto rounded-2xl p-6 bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 shadow-sm dark:shadow-none text-center">
+      <h3 class="font-semibold text-lg">Local-first, always</h3>
+      <p class="mt-2 text-stone-600 dark:text-stone-300 leading-relaxed">
+        Every integration is designed to run <span class="font-medium text-stone-900 dark:text-white">on your own LAN</span>, with no cloud and no internet required while Shabbos or Yom Tov is in.
+      </p>
+    </div>
+    <div class="mt-6 max-w-3xl mx-auto rounded-2xl p-6 bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 shadow-sm dark:shadow-none text-center">
+      <h3 class="font-semibold text-lg">Private by design</h3>
+      <p class="mt-2 text-stone-600 dark:text-stone-300 leading-relaxed">
+        No accounts, no analytics, no tracking, and it <span class="font-medium text-stone-900 dark:text-white">never phones home</span>. Everything stays in a folder on your own machine; nothing about you or your home is ever sent to the developer (or anywhere).
+      </p>
+      <p class="mt-3 text-sm text-stone-500"><a href="privacy/" class="underline hover:text-accent-600 dark:hover:text-accent-400">Read the privacy policy</a></p>
+    </div>
+  </section>
+
+  <!-- install -->
+  <section id="install" class="max-w-3xl mx-auto px-5 py-16 reveal">
+    <h2 class="text-3xl sm:text-4xl font-bold text-center">Install in two commands</h2>
+    <p class="mt-3 text-center text-stone-500 dark:text-stone-400">Self-hosted with Docker. Your data never leaves your network.</p>
+    <div class="mt-8 relative rounded-2xl bg-stone-900 dark:bg-black/50 ring-1 ring-stone-800 dark:ring-white/10">
+      <button id="copy-install" type="button" aria-label="Copy install commands"
+        class="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-stone-300 bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition">
+        <svg class="copy-i w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <svg class="check-i w-3.5 h-3.5 hidden text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+        <span class="copy-label">Copy</span>
+      </button>
+      <div class="p-5 pr-24 font-mono text-sm text-stone-300 overflow-x-auto">
+        <div class="text-stone-500"># create a folder and grab the compose file</div>
+        <div><span class="text-accent-400">wget</span> -O docker-compose.yml https://github.com/moshechaikin/smart-oneg/releases/latest/download/docker-compose.yml</div>
+        <div class="mt-2"><span class="text-accent-400">docker</span> compose up -d</div>
+        <div class="mt-2 text-stone-500"># then open http://&lt;host&gt;:1836 and follow the setup wizard</div>
+      </div>
+    </div>
+    <div class="mt-6 max-w-xl mx-auto reveal rounded-xl px-4 py-3 bg-amber-500/5 ring-1 ring-amber-500/20 text-amber-700/90 dark:text-amber-200/80 text-center text-sm">
+      <span class="font-semibold">Testers wanted.</span> Lutron and Home Assistant have been tested extensively on real hardware, but Hubitat, Matter, Ecobee and Homebridge need community verification.
+      <a href="https://github.com/moshechaikin/smart-oneg/issues" class="underline font-medium" target="_blank" rel="noopener">Open an issue</a> if you run into any problems.
+    </div>
+    <div class="mt-6 text-center">
+      <a href="docs/#installation" class="inline-block px-5 py-2.5 rounded-xl bg-stone-100 dark:bg-white/5 hover:bg-stone-200 dark:hover:bg-white/10 ring-1 ring-stone-200 dark:ring-white/10 font-semibold transition">Full installation guide →</a>
+    </div>
+  </section>
+
+  <!-- about -->
+  <section id="about" class="max-w-4xl mx-auto px-5 py-24 text-center reveal">
+    <img src="assets/icon-512.png" alt="" class="w-28 h-28 sm:w-32 sm:h-32 mx-auto ring-1 ring-stone-200 dark:ring-white/10 shadow-xl" style="border-radius:22.37%">
+    <h2 class="mt-6 text-3xl sm:text-4xl font-bold">About</h2>
+    <p class="mt-5 max-w-2xl mx-auto text-lg text-stone-600 dark:text-stone-300 leading-relaxed">
+      SmartOneg is the first home-automation platform built from the <em>ground up</em> for Shabbos and Yom Tov - 
+      not a generic automation tool with some zmanim and a Jewish calendar bolted on. Every detail,
+      from the schedule logic to the safeguards around it, is designed around how Shabbos and Yom Tov
+      actually work.
+    </p>
+
+    <div class="mt-12 relative z-10">
+      <a href="https://github.com/moshechaikin/" target="_blank" rel="noopener"
+         class="lift block max-w-md mx-auto rounded-3xl p-8 bg-white dark:bg-white/5 ring-1 ring-stone-200 dark:ring-white/10 shadow-sm dark:shadow-none">
+        <div class="text-sm uppercase tracking-wide text-stone-500 dark:text-stone-400">Developed by</div>
+        <div class="mt-2 text-3xl sm:text-4xl font-extrabold grad-text">Moshe Chaikin</div>
+      </a>
+    </div>
+
+    <!-- support / buy me a coffee -->
+    <div class="mt-6 max-w-2xl mx-auto rounded-3xl p-8 bg-accent-500/10 ring-1 ring-accent-500/30 text-center shadow-[0_0_90px_-20px_rgba(245,158,11,0.55)]">
+      <div class="text-sm uppercase tracking-wide text-accent-700 dark:text-accent-300 font-semibold">Support the project</div>
+      <p class="mt-2 max-w-xl mx-auto text-stone-600 dark:text-stone-300">SmartOneg is free and open source. If it helps brighten your Shabbos and Yom Tov, you can buy me a coffee to support its development.</p>
+      <!-- the Buy Me a Coffee widget renders its button in place of this script; the GitHub Sponsors button sits beside it -->
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-4">
+        <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="moshechaikin" data-color="#FFDD00" data-emoji=""  data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#ffffff" ></script>
+        <a href="https://github.com/sponsors/moshechaikin" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold bg-white dark:bg-white/10 text-stone-800 dark:text-stone-100 ring-1 ring-stone-300 dark:ring-white/15 shadow-sm hover:bg-stone-50 dark:hover:bg-white/15 transition-colors">
+          <svg viewBox="0 0 16 16" fill="currentColor" class="w-[18px] h-[18px]" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          Sponsor
+          <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 text-pink-600 dark:text-pink-400" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35Z"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- footer -->
+  <footer class="border-t border-stone-200 dark:border-white/5 mt-10">
+    <div class="max-w-6xl mx-auto px-5 py-12 flex flex-col sm:flex-row items-center justify-between gap-6">
+      <div class="flex items-center gap-3">
+        <img src="assets/icon-512.png" alt="" class="w-10 h-10 ring-1 ring-stone-200 dark:ring-white/10" style="border-radius:22.37%">
+        <div>
+          <div class="font-bold">SmartOneg</div>
+          <div class="text-sm text-stone-500">The Ultimate Shabbos &amp; Yom Tov Smart Home Automation App</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-5 text-sm text-stone-500 dark:text-stone-400">
+        <a href="docs/" class="hover:text-stone-900 dark:hover:text-white transition">Docs</a>
+        <a href="demo/" class="hover:text-stone-900 dark:hover:text-white transition">Demo</a>
+        <a href="privacy/" class="hover:text-stone-900 dark:hover:text-white transition">Privacy</a>
+        <a href="https://github.com/moshechaikin/smart-oneg" class="hover:text-stone-900 dark:hover:text-white transition" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+    <div class="max-w-6xl mx-auto px-5 pb-2 text-sm text-stone-500">
+      &copy; <span id="copyright-year">2026</span> SmartOneg
+      · Developed by <a href="https://github.com/moshechaikin/" class="underline hover:text-stone-700 dark:hover:text-stone-300" target="_blank" rel="noopener">Moshe Chaikin</a>
+      · Powered by <a href="https://github.com/hebcal/hebcal-es6" class="underline hover:text-stone-700 dark:hover:text-stone-300" target="_blank" rel="noopener">Hebcal</a>
+    </div>
+    <script>document.getElementById('copyright-year').textContent = new Date().getFullYear();</script>
+    <div class="max-w-6xl mx-auto px-5 pb-10 text-xs text-stone-400 dark:text-stone-500 leading-relaxed">
+      Lutron and Caséta are trademarks of Lutron Electronics Co., Inc. ecobee is a trademark of ecobee Inc. Hubitat and Hubitat Elevation are trademarks of Hubitat, Inc. Matter and Thread are trademarks of the Connectivity Standards Alliance. Apple and HomeKit are trademarks of Apple Inc. Home Assistant is a trademark of the Open Home Foundation. All other product names, logos, and brands are the property of their respective owners. SmartOneg is an independent open-source project and is not affiliated with, endorsed by, or sponsored by any of them.
+    </div>
+  </footer>
+
+  <script>
+    // scroll reveal
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    }, { threshold: 0.12 });
+    // The timeline draws itself in, so it should fire only once you've actually
+    // scrolled to it (not the instant its top edge peeks in): wait until it's a
+    // good way up the viewport, then a beat later so you catch the fade.
+    const ioTL = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); ioTL.unobserve(e.target); }
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.1 });
+    document.querySelectorAll('.reveal').forEach((n) => (n.querySelector('.fx-rail') ? ioTL : io).observe(n));
+
+    // ambient glow drifts slowly on scroll (parallax). The hero screenshot no
+    // longer ties to scroll position — it animates in once on page load (see
+    // the #hero-shot keyframe above), timed just after the hero text.
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const glow = document.querySelector('.glow');
+    let ticking = false;
+    function onScroll() {
+      if (glow) glow.style.transform = `translate(-50%, ${(scrollY * 0.28).toFixed(0)}px)`;
+      ticking = false;
+    }
+    if (!reduce) {
+      addEventListener('scroll', () => { if (!ticking) { requestAnimationFrame(onScroll); ticking = true; } }, { passive: true });
+      onScroll();
+    }
+
+    // Copy the two install commands as one &&-joined line, with a brief
+    // "Copied" confirmation on the button.
+    const copyBtn = document.getElementById('copy-install');
+    if (copyBtn) {
+      const cmd = 'wget -O docker-compose.yml https://github.com/moshechaikin/smart-oneg/releases/latest/download/docker-compose.yml && docker compose up -d';
+      let revert;
+      copyBtn.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(cmd); }
+        catch { const t = document.createElement('textarea'); t.value = cmd; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+        copyBtn.querySelector('.copy-i').classList.add('hidden');
+        copyBtn.querySelector('.check-i').classList.remove('hidden');
+        copyBtn.querySelector('.copy-label').textContent = 'Copied';
+        clearTimeout(revert);
+        revert = setTimeout(() => {
+          copyBtn.querySelector('.copy-i').classList.remove('hidden');
+          copyBtn.querySelector('.check-i').classList.add('hidden');
+          copyBtn.querySelector('.copy-label').textContent = 'Copy';
+        }, 2000);
+      });
+    }
+
+    // Printable zmanim: crossfade through the festival sheets (Sukkos, Pesach,
+    // Shavuos, and the full-year Shabbos sheet), ~3.5s on each.
+    const pdfSlides = document.querySelectorAll('.pdf-slide');
+    if (pdfSlides.length > 1 && !reduce) {
+      let pdfI = 0;
+      setInterval(() => {
+        pdfSlides[pdfI].classList.remove('on');
+        pdfI = (pdfI + 1) % pdfSlides.length;
+        pdfSlides[pdfI].classList.add('on');
+      }, 3500);
+    }
+
+    // Child Lock demo: the light is on per schedule, something flips it off,
+    // and after a short grace the lock bounces it back on. Only runs when the
+    // card is on screen, so the loop pauses while it isn't visible.
+    const cl = document.getElementById('cl-card');
+    if (cl && !reduce) {
+      let step = 0, visible = false;
+      const seq = [
+        () => cl.classList.add('off'),                                   // a switch flips it off
+        () => { cl.classList.remove('off'); cl.classList.add('bump'); }, // lock restores it, with a bounce
+        () => cl.classList.remove('bump'),
+      ];
+      // On is the resting state, so it lingers; the off is a brief blip the lock
+      // quickly corrects. Off ≈ 1.4s, then it sits On ≈ 4.5s before the next blip.
+      const delays = [1400, 550, 4500];
+      let timer;
+      function tick() { seq[step](); const d = delays[step]; step = (step + 1) % seq.length; if (visible) timer = setTimeout(tick, d); }
+      new IntersectionObserver((es) => {
+        for (const e of es) {
+          if (e.isIntersecting && !visible) { visible = true; timer = setTimeout(tick, 3200); }
+          else if (!e.isIntersecting && visible) { visible = false; clearTimeout(timer); }
+        }
+      }, { threshold: 0.4 }).observe(cl);
+    }
+  </script>
+</body>
+</html>
