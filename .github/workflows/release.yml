@@ -153,14 +153,25 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Bump Homebrew formula
+      # Push the new url + sha256 straight to the tap's main (no PR to merge), so
+      # `brew upgrade smart-oneg` works right after a stable release. The checksum
+      # is computed from the exact tag tarball we just pushed, so it can't drift.
+      - name: Update Homebrew tap
         if: steps.brew.outputs.enabled == 'true' && !contains(steps.ver.outputs.version, '-')
-        uses: dawidd6/action-homebrew-bump-formula@v3
-        with:
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}   # PAT with repo scope on homebrew-tap
-          tap: moshechaikin/homebrew-tap
-          formula: smart-oneg
-          tag: v${{ steps.ver.outputs.version }}
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/v$V.tar.gz"
+          SHA=$(curl -fsSL "$URL" | sha256sum | cut -d' ' -f1)
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/moshechaikin/homebrew-tap.git" tap
+          F="tap/Formula/smart-oneg.rb"
+          sed -i -E "s|^( *)url \".*\"|\1url \"$URL\"|" "$F"
+          sed -i -E "s|^( *)sha256 \".*\"|\1sha256 \"$SHA\"|" "$F"
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C tap commit -am "smart-oneg $V"
+          git -C tap push origin HEAD:main
 
   # Publish the static site (smartoneg.com) after a release. The release commit
   # is pushed with GITHUB_TOKEN, which by design does NOT trigger the separate
