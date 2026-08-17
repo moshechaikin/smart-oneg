@@ -1,6 +1,6 @@
 {
   "name": "smart-oneg",
-  "version": "1.0.0-rc.10",
+  "version": "1.0.0",
   "description": "The Ultimate Shabbos & Yom Tov Smart Home Automation App",
   "type": "module",
   "main": "server/index.js",

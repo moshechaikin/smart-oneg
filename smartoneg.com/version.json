@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-rc.10",
-  "url": "https://github.com/moshechaikin/smart-oneg/releases/tag/v1.0.0-rc.10",
-  "notes": "final release candidate before stable release"
+  "version": "1.0.0",
+  "url": "https://github.com/moshechaikin/smart-oneg/releases/tag/v1.0.0",
+  "notes": "1.0.0 - First Release! See the full feature tour at smartoneg.com."
 }
