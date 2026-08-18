@@ -117,7 +117,7 @@ export function omerSheet(cal, fromISO = new Date().toISOString().slice(0, 10)) 
     .text(heb(HARACHAMAN), M, 792 - 44, { width: PW, align: 'center', lineBreak: false });
   doc.font('Helvetica-Oblique').fontSize(6.8).fillColor('#9ca3af').text(
     `Dates computed with @hebcal/core for ${cal.location.city || 'your location'}. Count after tzeis; if you missed a full night, continue without the beracha.`,
-    36, 792 - 20, { width: 612 - 72, align: 'center', lineBreak: false },
+    36, 792 - 27, { width: 612 - 72, align: 'center', lineBreak: false },
   );
   smartonegNod(doc);
   doc.end();
@@ -128,6 +128,6 @@ export function omerSheet(cal, fromISO = new Date().toISOString().slice(0, 10)) 
 export function smartonegNod(doc) {
   doc.font('Helvetica').fontSize(6.8).fillColor('#9ca3af').text(
     'Made with SmartOneg  ·  github.com/moshechaikin/smartoneg  ·  smartoneg.com',
-    36, 792 - 11, { width: 612 - 72, align: 'center', lineBreak: false },
+    36, 792 - 18, { width: 612 - 72, align: 'center', lineBreak: false },
   );
 }
