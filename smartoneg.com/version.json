@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
-  "url": "https://github.com/moshechaikin/smart-oneg/releases/tag/v1.0.0",
-  "notes": "1.0.0 - First Release! See the full feature tour at smartoneg.com."
+  "version": "1.0.1",
+  "url": "https://github.com/moshechaikin/smart-oneg/releases/tag/v1.0.1",
+  "notes": "- Fix pdf footer cutting off when printing"
 }
