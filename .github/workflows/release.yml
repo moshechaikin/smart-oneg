@@ -7,7 +7,7 @@ on:
         description: "Version to release (e.g. 1.2.0)"
         required: true
       notes:
-        description: "Release notes (markdown)"
+        description: "Release notes override (optional; leave blank to use latest_release_notes.md)"
         required: false
         default: ""
 
@@ -31,9 +31,30 @@ jobs:
           V="${V#v}"
           echo "version=$V" >> "$GITHUB_OUTPUT"
 
+      # Resolve the release notes ONCE into a temp file that both the in-app
+      # update notes (version.json) and the GitHub release body read from. The
+      # dispatch box wins when filled in (handy for a quick one-liner); otherwise
+      # we fall back to the repo's latest_release_notes.md, which is where you
+      # write rich, multi-line markdown without fighting the single-line input.
+      # It holds ONLY the current release's notes (not a running changelog).
+      - name: Resolve release notes
+        id: notes
+        env:
+          INPUT_NOTES: ${{ inputs.notes }}
+        run: |
+          OUT="$RUNNER_TEMP/release-notes.md"
+          if [ -n "${INPUT_NOTES//[$'\t\r\n ']/}" ]; then
+            printf '%s\n' "$INPUT_NOTES" > "$OUT"
+          elif [ -f latest_release_notes.md ]; then
+            cp latest_release_notes.md "$OUT"
+          else
+            : > "$OUT"
+          fi
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+
       - name: Bump version everywhere
         env:
-          NOTES: ${{ inputs.notes }}
+          NOTES_FILE: ${{ steps.notes.outputs.file }}
         run: |
           V="${{ steps.ver.outputs.version }}"
           npm version "$V" --no-git-tag-version
@@ -50,10 +71,12 @@ jobs:
           V="$V" node -e '
             const fs = require("fs");
             const v = process.env.V;
+            let notes = "";
+            try { notes = fs.readFileSync(process.env.NOTES_FILE, "utf8"); } catch {}
             const out = {
               version: v,
               url: "https://github.com/${{ github.repository }}/releases/tag/v" + v,
-              notes: (process.env.NOTES || "").trim(),
+              notes: notes.trim(),
             };
             fs.writeFileSync("smartoneg.com/version.json", JSON.stringify(out, null, 2) + "\n");
           '
@@ -142,18 +165,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.ver.outputs.version }}"
-          NOTES_FILE=$(mktemp)
-          cat > "$NOTES_FILE" <<'NOTES_EOF'
-          ${{ inputs.notes }}
-          NOTES_EOF
           RELEASE_ARGS=()
           if [[ "$V" == *-* ]]; then
             RELEASE_ARGS+=(--prerelease)
           fi
-          # attach the repo's docker-compose.yml so the latest/download URL works
+          # attach the repo's docker-compose.yml so the latest/download URL works.
+          # notes come from the file resolved earlier (dispatch box or
+          # latest_release_notes.md).
           gh release create "v$V" docker-compose.yml \
             --title "SmartOneg v$V" \
-            --notes-file "$NOTES_FILE" \
+            --notes-file "${{ steps.notes.outputs.file }}" \
             --target "$(git rev-parse HEAD)" \
             "${RELEASE_ARGS[@]}"
 

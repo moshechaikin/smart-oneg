@@ -2020,7 +2020,10 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
           }, `select !w-auto${uiAction() ? '' : ' !border-accent-400'}`),
           // no device picker until an action is chosen
           !uiAction() ? null : isScene()
-            ? select(scenes.map((s) => [s.id, s.name ?? s.id]), rule.action.sceneId, (v) => { rule.action.sceneId = v; }, 'select !w-auto')
+            // a long scene name must not stretch the native <select> off-screen
+            // (it can't wrap its selected text) — take a full row and ellipsize;
+            // the full name still shows in the open dropdown
+            ? select(scenes.map((s) => [s.id, s.name ?? s.id]), rule.action.sceneId, (v) => { rule.action.sceneId = v; }, 'select w-full min-w-0 truncate')
             : multiDeviceSelect(
               uiAction() === 'thermostat' ? thermostats : runMode ? autos : uiAction() === 'flash' ? flashZones : plainZones,
               selectedZones, (sel) => {
