@@ -80,6 +80,11 @@ jobs:
             };
             fs.writeFileSync("smartoneg.com/version.json", JSON.stringify(out, null, 2) + "\n");
           '
+          # Cache-bust the hero image URLs to ?v=$V. Pages serves these with a 4h
+          # cache and the filename never changes, so without this a new release's
+          # hero stays stale in browser/CDN caches; a version query forces a fresh
+          # fetch immediately.
+          sed -i -E "s#(assets/screenshots/dashboard(-dark)?\.png)(\?v=[0-9.]+)?#\1?v=$V#g" smartoneg.com/index.html
 
       # Refresh the marketing site's dashboard hero (light + dark) so it shows the
       # current design and the version just written above. Runs AFTER the bump and
@@ -130,7 +135,7 @@ jobs:
           V="${{ steps.ver.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json public/js/version.js smartoneg.com/demo smartoneg.com/version.json smartoneg.com/assets/screenshots/dashboard.png smartoneg.com/assets/screenshots/dashboard-dark.png
+          git add package.json package-lock.json public/js/version.js smartoneg.com/demo smartoneg.com/version.json smartoneg.com/index.html smartoneg.com/assets/screenshots/dashboard.png smartoneg.com/assets/screenshots/dashboard-dark.png
           git commit -m "Release v$V"
           git tag "v$V"
           git push origin HEAD --tags
