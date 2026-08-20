@@ -58,9 +58,9 @@ async function bootStack({ latchZone9 = false, childLock = false } = {}) {
 
   client = new LutronClient({ host: '127.0.0.1', port: bridge.port, zoneIds: [3, 9], commandTimeoutMs: 500 });
   const tracker = new ZoneStateTracker({ stateStore });
-  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: client });
+  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: client });
   client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-  const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+  const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
   await client.connect();
   stack = { configStore, stateStore, tracker, enforcement, scheduler };
   return stack;

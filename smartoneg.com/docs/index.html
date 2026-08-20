@@ -37,6 +37,16 @@
     .prose pre code { background:none; border:none; padding:0; color:#e7e5e4 }
     .prose a { color:#b45309; text-decoration:underline }
     .sidelink.active { color:#1c1917; background:rgba(212,136,31,.14); border-color:rgba(212,136,31,.45) }
+    /* bottom fade on the mobile nav: a scroll affordance for touch devices that
+       hide the scrollbar. Pinned to the bottom of the scroll area (not the list),
+       so it never scrolls away; JS drops its opacity once you reach the end. */
+    .mnav-fade { position:absolute; left:0; right:0; bottom:0; height:4.5rem; pointer-events:none;
+      background:linear-gradient(to top, #fafaf9 38%, rgba(250,250,249,0)); transition:opacity .2s; }
+    .mnav-fade.at-end { opacity:0 }
+    /* a small downward chevron centred in the fade reinforces "scroll for more"
+       even when only a sliver of a link peeks out */
+    .mnav-fade::after { content:''; position:absolute; left:50%; bottom:.85rem; width:.7rem; height:.7rem;
+      transform:translateX(-50%) rotate(45deg); border-right:2px solid #a8a29e; border-bottom:2px solid #a8a29e; opacity:.75 }
     /* whimsical hover on the Ballmer gif — desktop pointers only, so it doesn't
        fire from a tap-and-hold on touch devices */
     @media (hover:hover) and (pointer:fine) {
@@ -94,6 +104,7 @@
       .sidelink.active { color:#fff; background:rgba(212,136,31,.12); border-color:rgba(212,136,31,.4) }
       th,td { border-bottom-color:#292524 }
       th { color:#a8a29e }
+      .mnav-fade { background:linear-gradient(to top, #1c1917 38%, rgba(28,25,23,0)) }
       ::-webkit-scrollbar-thumb { background:rgb(168 162 158 / .3) }
       ::-webkit-scrollbar-thumb:hover { background:rgb(168 162 158 / .5) }
       html { scrollbar-color:rgb(168 162 158 / .3) transparent }
@@ -112,11 +123,11 @@
           <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <a href="../" class="hidden sm:inline px-3 py-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition">Home</a>
-        <a href="https://github.com/moshechaikin/smart-oneg" class="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 ring-1 ring-white/10 text-stone-100 font-medium transition" target="_blank" rel="noopener">
+        <a href="https://github.com/moshechaikin/smart-oneg" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 ring-1 ring-white/10 text-stone-100 font-medium transition" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor"><path d="M12 2A10 10 0 0 0 8.84 21.5c.5.08.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.1-1.47-1.1-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.9.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.5 9.5 0 0 1 12 6.8c.85 0 1.7.11 2.5.34 1.9-1.3 2.74-1.03 2.74-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.57.67.48A10 10 0 0 0 12 2z"/></svg>
           GitHub
         </a>
-        <a href="../demo/" class="px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-400 text-stone-950 font-semibold transition">Live demo</a>
+        <a href="../demo/" class="hidden sm:inline-block px-4 py-2 rounded-xl bg-accent-500 hover:bg-accent-400 text-stone-950 font-semibold transition">Live demo</a>
       </div>
     </div>
   </header>
@@ -124,14 +135,19 @@
   <!-- mobile documentation menu (mirrors the sidebar) -->
   <div id="mobile-nav" class="fixed inset-0 z-50 lg:hidden hidden">
     <div id="mobile-nav-backdrop" class="absolute inset-0 bg-stone-950/50"></div>
-    <div class="absolute top-0 left-0 h-full w-72 max-w-[82%] bg-stone-50 dark:bg-stone-900 shadow-2xl overflow-y-auto p-5">
-      <div class="flex items-center justify-between mb-4">
+    <div class="absolute top-0 left-0 h-full w-72 max-w-[82%] bg-stone-50 dark:bg-stone-900 shadow-2xl flex flex-col">
+      <div class="flex items-center justify-between p-5 pb-4 shrink-0">
         <span class="font-bold tracking-tight">Documentation</span>
         <button id="menu-close" class="w-9 h-9 inline-flex items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200/60 dark:hover:bg-white/10 transition" aria-label="Close menu">
           <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
-      <nav id="mobile-nav-links" class="space-y-1 text-sm"></nav>
+      <!-- the scroll area + a bottom fade that signals "more below" on touch
+           devices where the scrollbar is hidden; JS hides it at the end -->
+      <div class="relative flex-1 min-h-0">
+        <nav id="mobile-nav-links" class="h-full overflow-y-auto px-5 pb-6 space-y-1 text-sm"></nav>
+        <div id="mobile-nav-fade" class="mnav-fade" aria-hidden="true"></div>
+      </div>
     </div>
   </div>
 
@@ -260,7 +276,7 @@ docker compose restart smart-oneg</code></pre>
       <p>Add devices from the Devices page (“Add devices”). Supported sources:</p>
       <table>
         <tr><th>Source</th><th>How</th><th>Child Lock</th></tr>
-        <tr><td>Lutron Caseta</td><td>Import the integration report</td><td>Push (instant)</td></tr>
+        <tr><td>Lutron Caséta</td><td>Import the integration report</td><td>Push (instant)</td></tr>
         <tr><td>Home Assistant</td><td>Long-lived token; REST + websocket</td><td>Push (instant)</td></tr>
         <tr><td>Homebridge</td><td>config-ui-x API (insecure mode <code>-I</code>)</td><td>Polled (a few seconds)</td></tr>
         <tr><td>Hubitat</td><td>Maker API app id + token</td><td>Webhook or polled</td></tr>
@@ -272,15 +288,15 @@ docker compose restart smart-oneg</code></pre>
       <p><strong>Device types:</strong> each device can be a light, dimmer, smart plug/outlet, fan, shade/blind, thermostat (with °C/°F display and preset/heat/cool modes), a smart lock, a robot vacuum, a fridge whose Sabbath mode is exposed as a switch, or an alarm partition / bypass zone (see below). When you import, assign each device to one of your existing rooms so everything stays organized, and double-check its type is set correctly, a dimmer imported as a plain light (or vice versa) won't offer the right controls (brightness levels, etc.).</p>
       <p><strong>A note on smart locks:</strong> a lock is meant to be used the same way lights are, as a <em>scheduled</em> action you set up before Shabbos or Yom Tov, for example auto-locking the front door at a set time Friday night. Operating a lock by hand during the day itself (a keypad, an app, or the manual Lock/Unlock button here) directly runs an electronic device, so the value is the timer-style automation, not tapping Lock or Unlock on Shabbos. A lock is also a security device, so lean toward scheduled auto-<em>locking</em> rather than auto-unlocking while you are asleep or away.</p>
 
-      <h3>Lutron Caseta</h3>
-      <p>Lutron's <strong>Caseta</strong> lineup, switches, dimmers, plug-in modules, and Pico remotes, connects through the Smart Bridge PRO (<strong>L-BDGPRO2</strong> model only). Browse the full range on the <a href="https://www.casetawireless.com/us/en" target="_blank" rel="noopener">Caseta website</a>.</p>
+      <h3>Lutron Caséta</h3>
+      <p>Lutron's <strong>Caséta</strong> lineup, switches, dimmers, plug-in modules, and Pico remotes, connects through the Smart Bridge PRO (<strong>L-BDGPRO2</strong> model only - you may only find these from specialized online retailers or eBay). Browse the full range on the <a href="https://www.casetawireless.com/us/en" target="_blank" rel="noopener">Caséta website</a>.</p>
       <ol>
         <li>Pair your switches, dimmers, plug-in modules, and Pico remotes to the Smart Bridge PRO using the Lutron app, as usual.</li>
         <li>Once all your devices are paired, open the <strong>Settings gear → Advanced → Integration</strong> and turn <strong>Telnet Support ON</strong>.</li>
         <li>From that same Advanced menu, give the bridge a <strong>static IP</strong>, either set it directly there under network settings, or reserve one for it in your router's DHCP settings.</li>
         <li>Tap <strong>Send Integration Report</strong> to email yourself the JSON listing every device paired to the bridge.</li>
         <li>In SmartOneg, go to <strong>Settings → Bridges &amp; hubs</strong>, enable <strong>Use a Lutron bridge</strong>, fill in the bridge's IP, and save.</li>
-        <li>Then go to <strong>Devices → Add devices → Lutron Caseta</strong> and import that JSON report.</li>
+        <li>Then go to <strong>Devices → Add devices → Lutron Caséta</strong> and import that JSON report.</li>
       </ol>
 
       <h2 id="alarm">Alarm systems (EnvisaLink)</h2>
@@ -359,7 +375,7 @@ docker compose restart smart-oneg</code></pre>
       <h2 id="child-lock">Child Lock</h2>
       <p>Opt-in globally and per-device. During an active Shabbos/Yom Tov, SmartOneg watches the bridge for deviations; if a watched light ends up wrong, it's set back after a <strong>grace delay</strong> (how long it waits before restoring, 5–15s). Flipping the same switch <strong>N times in a row</strong> (2–10, letting it revert between flips) latches that device to its manual state until havdalah, the non-Jew escape hatch.</p>
       <p>The flips only add up when they come in quick succession: the app keeps a rolling window of about <code>grace + 25s</code> between one flip and the next (so it always covers a “flip → wait for the restore → flip again” cycle, and scales with your grace delay). The moment there's a longer gap the counter resets, so a press one day and another the next, or a few scattered presses over an evening, never accumulate into an accidental hold. A genuine override sequence takes well under a minute. Presses are capped at 10 and grace at 15s precisely because a real helper won't stand there flipping a switch for minutes on end.</p>
-      <p>Two details worth knowing. First, <strong>counting and the grace delay are separate</strong>: every flip is counted the instant it happens, not only once the grace delay elapses, so a fast flurry of presses adds up right away. The grace delay governs only the <em>restore</em>, and each flip restarts it, so during a rapid back-and-forth the app doesn't fight you mid-stream, it waits until things settle and sets the light right once, grace seconds after your <em>last</em> flip. Second, <strong>only flips that leave the light in the wrong state count</strong>: flipping it back to where the schedule wants it isn't a deviation at all, so it doesn't add to the counter, it simply cancels the pending restore. A practical consequence: the flips only add up when the light <strong>returns to its scheduled state in between</strong>, so pressing off five times while it's already off counts as one, not five, the escape hatch is “flip it off, let it come back on, flip it off again,” N times.</p>
+      <p>Two details worth knowing. First, <strong>the counter tracks flips that leave the device in the wrong state, not raw button presses</strong>. A press that returns it to where the schedule wants it isn't a deviation at all, so it never adds to the counter, it just cancels the pending restore. Because the counter only advances when the device is flipped <em>away</em> from its scheduled state, and that can only happen again once the device has gone <strong>back to that state in between</strong> (either the app restored it after the grace delay, or someone pressed it back), <strong>mashing the switch in one direction does nothing</strong>: pressing off five times while a light is already off counts as <em>one</em>, not five. The escape hatch is the deliberate cycle “flip it off, let it come back on, flip it off again,” repeated N times within the window. Second, <strong>counting and the grace delay are separate</strong>: each counted flip registers the instant it happens, while the grace delay governs only the <em>restore</em> and every flip restarts it, so during a legitimate back-and-forth the app doesn't fight you mid-stream, it waits until things settle and sets the device right once, grace seconds after your <em>last</em> flip.</p>
       <p>By default Child Lock begins at candle lighting. Households that accept Shabbos early can set it to begin at the day's <strong>first rule</strong> instead. It only ever acts during Shabbos/Yom Tov, never on a weekday.</p>
 
       <h2 id="scenes-guest">Scenes, guest, away &amp; test mode</h2>
@@ -440,7 +456,7 @@ condition:
       <ul>
         <li><strong>Save a schedule:</strong> In the rule editor, <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> saves the current situation (same as the Save button), instead of the browser's save-page dialog.</li>
         <li><strong>Save settings:</strong> On the Settings page, <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> saves the tab you're on. Some tabs (Devices, System) save <em>and restart</em> to apply, exactly as their button does.</li>
-        <li><strong>Save a dialog:</strong> <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> also confirms save-style pop-ups, such as the scene editor and the room / device reorder panels.</li>
+        <li><strong>Save a dialog:</strong> <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">⌘S</kbd> / <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">Ctrl+S</kbd> also confirms save-style pop-ups throughout the app, such as the scene editor, editing a device, and the room / device reorder panels.</li>
         <li><strong>Change month:</strong> On the Calendar page, <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">←</kbd> and <kbd class="px-1.5 py-0.5 rounded border border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-[13px] font-mono">→</kbd> jump to the previous and next month.</li>
       </ul>
 
@@ -558,7 +574,32 @@ npm run test:e2e           # Playwright end-to-end (needs: npx playwright instal
     }, { rootMargin: '-10% 0px -80% 0px' });
     document.querySelectorAll('main [id]').forEach((n) => io.observe(n));
 
-    const setMenu = (open) => { mnav.classList.toggle('hidden', !open); document.body.style.overflow = open ? 'hidden' : ''; };
+    // bottom-fade scroll hint on the mobile nav: hide it once the list is
+    // scrolled to (or fits within) the bottom, show it whenever more is below.
+    const mnavLinks = document.getElementById('mobile-nav-links');
+    const mnavFade = document.getElementById('mobile-nav-fade');
+    const updateNavFade = () => {
+      const atEnd = mnavLinks.scrollTop + mnavLinks.clientHeight >= mnavLinks.scrollHeight - 4;
+      mnavFade.classList.toggle('at-end', atEnd);
+    };
+    mnavLinks.addEventListener('scroll', updateNavFade, { passive: true });
+
+    // when the drawer opens on a section far down the list, bring the active
+    // link into view (centred) so you don't have to hunt for where you are.
+    const scrollActiveIntoView = (smooth) => {
+      const active = mnavLinks.querySelector('.sidelink.active');
+      if (!active) { updateNavFade(); return; }
+      const cRect = mnavLinks.getBoundingClientRect();
+      const aRect = active.getBoundingClientRect();
+      // only move if it's clipped (allowing for the bottom fade's overlap)
+      if (aRect.top < cRect.top + 12 || aRect.bottom > cRect.bottom - 60) {
+        const target = mnavLinks.scrollTop + (aRect.top - cRect.top) - (mnavLinks.clientHeight - active.offsetHeight) / 2;
+        mnavLinks.scrollTo({ top: Math.max(0, target), behavior: smooth ? 'smooth' : 'auto' });
+      }
+      updateNavFade();
+    };
+
+    const setMenu = (open) => { mnav.classList.toggle('hidden', !open); document.body.style.overflow = open ? 'hidden' : ''; if (open) scrollActiveIntoView(false); };
     document.getElementById('menu-btn').addEventListener('click', () => setMenu(true));
     document.getElementById('menu-close').addEventListener('click', () => setMenu(false));
     document.getElementById('mobile-nav-backdrop').addEventListener('click', () => setMenu(false));

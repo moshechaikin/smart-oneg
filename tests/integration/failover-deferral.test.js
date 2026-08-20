@@ -43,16 +43,19 @@ function makeStandby({ pollSeconds = 0.02, recoverThreshold = 50 } = {}) {
   stateStore.load();
 
   // Health payload the fake primary answers with; tests mutate `reply`.
-  const reply = { mode: 'down', lutronConnected: true };
+  // Mirror the real primary, which sends the current `devicesConnected` field
+  // plus the legacy `lutronConnected` alias — so we exercise the field the
+  // FailoverManager actually reads today, not only the back-compat fallback.
+  const reply = { mode: 'down', connected: true };
   const fetchImpl = async () => {
     if (reply.mode === 'down') throw new Error('unreachable');
-    return { ok: true, json: async () => ({ status: 'ok', configVersion: 1, lutronConnected: reply.lutronConnected }) };
+    return { ok: true, json: async () => ({ status: 'ok', configVersion: 1, devicesConnected: reply.connected, lutronConnected: reply.connected }) };
   };
 
   const scheduler = { recompile() {}, reconcile: async () => {} };
   const lutron = { connected: false, async connect() { this.connected = true; }, close() { this.connected = false; } };
   const failover = new FailoverManager({
-    configStore, stateStore, scheduler, lutron, notifier: { send: async () => ({}) }, fetchImpl,
+    configStore, stateStore, scheduler, devices: lutron, notifier: { send: async () => ({}) }, fetchImpl,
   });
   // state.failover must exist for #maybeSync's lastSyncedVersion read
   stateStore.get().failover = { ...stateStore.get().failover, lastSyncedVersion: 1 };
@@ -88,11 +91,49 @@ describe('standby stands down from driving before the formal release', () => {
     // Primary answers HTTP but has no bridge — it cannot actually drive lights,
     // so standing down here would leave the house unattended.
     reply.mode = 'up';
-    reply.lutronConnected = false;
+    reply.connected = false;
     await tick();
 
     expect(failover.drivesLights()).toBe(true);
     expect(failover.status().deferring).toBe(false);
+    failover.stop();
+  }, 15_000);
+
+  it('SAFETY: takes over when the primary is HTTP-ok but its bridge is DOWN', async () => {
+    // The real outage this fixes: a container restart (e.g. a Watchtower auto-
+    // update) brings the primary's HTTP back within seconds while it still
+    // cannot reach the Lutron bridge. Watching only HTTP liveness, the standby
+    // saw status:ok and sat idle forever — house unattended. A primary that
+    // reports lutronConnected:false must count toward takeover just like an
+    // unreachable one.
+    const { failover, reply, lutron } = makeStandby(); // failThreshold: 1
+    reply.mode = 'up';
+    reply.connected = false; // HTTP up, bridge down from the start
+    failover.start();
+    await tick();
+
+    expect(failover.active).toBe(true); // stepped in
+    expect(failover.drivesLights()).toBe(true);
+    expect(lutron.connected).toBe(true); // connected its own bridge
+    failover.stop();
+  }, 15_000);
+
+  it('SAFETY: a bridge-less primary that recovers its bridge gets a clean release', async () => {
+    // Full round trip of the restart case: standby takes over from a bridge-
+    // down primary, then hands back cleanly once the primary's bridge returns.
+    const { failover, reply, lutron } = makeStandby({ recoverThreshold: 2 });
+    reply.mode = 'up';
+    reply.connected = false;
+    failover.start();
+    await tick();
+    expect(failover.active).toBe(true);
+    expect(lutron.connected).toBe(true);
+
+    reply.connected = true; // primary's bridge comes back
+    const released = new Promise((r) => failover.once('release', r));
+    await released;
+    expect(failover.active).toBe(false);
+    expect(lutron.connected).toBe(false); // released our bridge
     failover.stop();
   }, 15_000);
 
@@ -125,14 +166,14 @@ describe('standby stands down from driving before the formal release', () => {
     await tick();
     expect(failover.drivesLights()).toBe(false); // stood down
 
-    reply.lutronConnected = false; // primary's bridge drops; HTTP stays up
+    reply.connected = false; // primary's bridge drops; HTTP stays up
     await tick();
 
     expect(failover.active).toBe(true);
     expect(failover.drivesLights()).toBe(true); // resumed — primary can't drive
     expect(failover.status().deferring).toBe(false);
 
-    reply.lutronConnected = true; // bridge back -> defer again
+    reply.connected = true; // bridge back -> defer again
     await tick();
     expect(failover.drivesLights()).toBe(false);
     failover.stop();
@@ -149,13 +190,13 @@ describe('standby stands down from driving before the formal release', () => {
     expect(failover.active).toBe(true);
 
     reply.mode = 'up';
-    reply.lutronConnected = false; // HTTP ok, bridge down — far past the threshold count
+    reply.connected = false; // HTTP ok, bridge down — far past the threshold count
     await tick(400); // many polls at 20ms
 
     expect(failover.active).toBe(true); // never released
     expect(failover.drivesLights()).toBe(true); // and still driving
 
-    reply.lutronConnected = true; // primary fully capable again
+    reply.connected = true; // primary fully capable again
     const released = new Promise((r) => failover.once('release', r));
     await released; // releases only once CAPABLE polls reach the threshold
     expect(failover.active).toBe(false);
@@ -191,8 +232,8 @@ describe('standby stands down from driving before the formal release', () => {
 
     let driving = true; // stand-in for failover.drivesLights()
     const canAct = () => driving;
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron, canAct });
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron, canAct });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: lutron, canAct });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: lutron, canAct });
     scheduler.compiled = {
       actions: [],
       allActions: [{ zone: 3, type: 'setLevel', level: 100, at: Date.now() - 60_000 }],
@@ -293,8 +334,8 @@ describe('standby stands down from driving before the formal release', () => {
       },
     };
     const canAct = () => driving;
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron, canAct });
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron, canAct });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: lutron, canAct });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: lutron, canAct });
     scheduler.compiled = {
       actions: [],
       allActions: [

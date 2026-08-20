@@ -50,10 +50,10 @@ describe('reconcile does not overwrite an action the clock crossed mid-run', () 
       coerceLevel: (_id, lvl) => lvl,
       async setLevelVerified(id, level) { driven.push({ id, level }); },
     };
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: fakeLutron });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: fakeLutron });
     // Build the scheduler AFTER config is set so the change listener never fires
     // a recompile that would overwrite our hand-built timeline below.
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: fakeLutron });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: fakeLutron });
 
     // Boundary B is 30 ms in the (virtual) future when reconcile() is called;
     // zone 8's turn is delayed 120 ms behind a held same-zone write (the same

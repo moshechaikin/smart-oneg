@@ -6,8 +6,8 @@ import { APP_VERSION } from '../version.js';
 /**
  * First-run setup wizard.
  * 0 welcome/import -> 1 role -> 2 location & times -> 3 ecosystems (pick
- * Lutron / Hubitat / Manual, set it up, optionally add more) -> 4 account
- * -> 5 notifications -> 6 enforcement -> done.
+ * Home Assistant / Lutron / Hubitat / Homebridge, set it up, optionally add
+ * more) -> 4 account -> 5 notifications -> 6 enforcement -> done.
  */
 export async function wizardPage() {
   const data = {
@@ -15,15 +15,16 @@ export async function wizardPage() {
     location: null, candleLightingMins: 18, havdalahMins: 45, il: false, locale: 'ashkenazi',
     ecosystems: {
       lutron: { chosen: false, host: '', report: null },
+      homeassistant: { chosen: false, host: '', token: '' },
       hubitat: { chosen: false, host: '', appId: '', accessToken: '' },
-      manual: { chosen: false, devices: [] },
+      homebridge: { chosen: false, host: '', username: '', password: '' },
     },
     email: '', password: '',
-    ntfyTopic: '', gmailUser: '', gmailAppPassword: '',
+    ntfyEnabled: false, ntfyTopic: '', ntfyServer: '', gmailEnabled: false, gmailUser: '', gmailAppPassword: '',
     enforcement: false,
   };
   let step = 0;
-  let ecoScreen = null; // null = picker; 'lutron'|'hubitat'|'manual' = that setup form
+  let ecoScreen = null; // null = picker; 'lutron'|'homeassistant'|'hubitat' = that setup form
   let standbyConnecting = false; // standby path: skip the rest, just mirror the primary
   let standbyStarted = false;    // guards the one-shot connect routine
   const TOTAL = 7;
@@ -66,15 +67,18 @@ export async function wizardPage() {
 
   function ecoPicker() {
     const chosen = chosenList();
+    // ecosystems with a brand logo (PNG/WebP) instead of a generic line icon
+    const IMG_ICONS = { homeassistant: '/icons/home-assistant-icon.png', lutron: '/icons/lutron-icon.png', hubitat: '/icons/hubitat-icon.png', homebridge: '/icons/homebridge-icon.png' };
     const cards = [
-      ['lutron', 'server', 'Lutron Caseta bridge', 'Smart Bridge PRO with telnet integration, the classic setup.'],
+      ['homeassistant', 'home', 'Home Assistant', 'Import and connect to devices from a local HA instance over websocket.'],
+      ['lutron', 'server', 'Lutron Caséta bridge', 'Smart Bridge PRO with telnet integration.'],
       ['hubitat', 'server', 'Hubitat hub', 'Local hub bridging Zigbee, Z-Wave and Ecobee devices.'],
-      ['manual', 'plus', 'Manual devices', 'Virtual devices for planning, no hardware needed yet.'],
+      ['homebridge', 'server', 'Homebridge', 'Import HomeKit accessories via the config-ui-x API (polled).'],
     ];
     return shell(
-      chosen.length === 0 ? 'What runs your lights?' : 'Add another ecosystem?',
+      chosen.length === 0 ? 'What runs your lights?' : 'Add another provider?',
       chosen.length === 0
-        ? 'Pick what you primarily use. You can add the others right after, or any time later from the Devices page. (Ecobee thermostats: pair them to a Hubitat for best reliability, or connect Ecobee’s cloud later from Devices → Add devices.)'
+        ? 'Pick what you primarily use. You can add the others right after, or any time later from the Devices page.'
         : 'You can also add more later from the Devices page.',
       el('div', { class: 'space-y-3' },
         cards.map(([key, ic, title, desc]) => el('button', {
@@ -84,10 +88,18 @@ export async function wizardPage() {
           onclick: () => { ecoScreen = key; draw(); },
         },
           el('span', { class: data.ecosystems[key].chosen ? 'text-emerald-600' : 'text-accent-600 dark:text-accent-400' },
-            icon(data.ecosystems[key].chosen ? 'check' : ic, 'w-7 h-7')),
+            data.ecosystems[key].chosen ? icon('check', 'w-7 h-7')
+              : IMG_ICONS[key]
+                // the Homebridge mark is a circle, so it reads a touch small in
+                // a square box next to the others — nudge it up to match
+                ? el('img', { src: IMG_ICONS[key], alt: '', class: `w-7 h-7 object-contain ${key === 'homebridge' ? 'scale-[1.15]' : ''}` })
+                : icon(ic, 'w-7 h-7')),
           el('div', { class: 'flex-1' },
             el('div', { class: 'font-semibold text-[16px]' }, title),
-            el('div', { class: 'hint' }, data.ecosystems[key].chosen ? 'Configured, tap to edit' : desc))))),
+            el('div', { class: 'hint' }, data.ecosystems[key].chosen ? 'Configured, click to edit' : desc))))),
+      el('p', { class: 'hint mt-4 flex items-start gap-2' },
+        icon('info', 'w-4 h-4 shrink-0 mt-0.5'),
+        el('span', {}, 'EnvisaLink and Matter devices can be added later from the app’s Settings → Devices.')),
       chosen.length > 0
         ? el('div', { class: 'flex justify-between items-center mt-8' },
           el('button', { class: 'btn-ghost', onclick: () => { step--; draw(); } }, icon('chevronLeft', 'w-5 h-5'), 'Back'),
@@ -100,7 +112,7 @@ export async function wizardPage() {
 
   function lutronScreen() {
     const eco = data.ecosystems.lutron;
-    const host = el('input', { class: 'input', value: eco.host, placeholder: '192.168.0.190' });
+    const host = el('input', { class: 'input', value: eco.host, placeholder: 'e.g., 192.168.0.100' });
     const testResult = el('div', { class: 'text-[15px] min-h-6 mt-2' });
     const ji = jsonInput({ placeholder: 'Paste the integration report JSON here…', rows: 'h-36' });
     if (eco.report) ji.setValue(JSON.stringify(eco.report));
@@ -160,35 +172,70 @@ export async function wizardPage() {
       }));
   }
 
-  function manualScreen() {
-    const eco = data.ecosystems.manual;
-    const list = el('div', { class: 'space-y-2' });
-    const name = el('input', { class: 'input flex-1 min-w-40', placeholder: 'e.g. Dining room light' });
-    const dim = checkRow('Dimmer', { checked: false });
-    const drawList = () => mount(clear(list),
-      eco.devices.length === 0 && el('p', { class: 'hint' }, 'No devices added yet.'),
-      eco.devices.map((d, i) => el('div', { class: 'flex items-center gap-3 rounded-xl border border-stone-200 dark:border-stone-700 px-4 py-2.5' },
-        icon('bulb', 'w-5 h-5 text-accent-500'),
-        el('span', { class: 'flex-1 text-[15px]' }, d.name),
-        el('span', { class: 'badge-off' }, d.dimmable ? 'Dimmer' : 'On/Off'),
-        el('button', { class: 'icon-btn !w-8 !h-8 text-rose-500', onclick: () => { eco.devices.splice(i, 1); drawList(); } }, icon('x', 'w-4 h-4')))));
-    drawList();
-    return shell('Add manual devices', 'Virtual devices follow schedules and appear everywhere, but control no hardware, perfect for planning before you buy.',
-      list,
-      el('div', { class: 'flex gap-2.5 items-center mt-4 flex-wrap' },
-        name, dim.node,
+  function homebridgeScreen() {
+    const eco = data.ecosystems.homebridge;
+    const host = el('input', { class: 'input', value: eco.host, placeholder: '192.168.0.30:8581' });
+    const user = el('input', { class: 'input', value: eco.username, placeholder: 'admin' });
+    const pass = el('input', { class: 'input', type: 'password', value: eco.password, placeholder: 'password' });
+    const testResult = el('div', { class: 'text-[15px] min-h-6' });
+    return shell('Set up Homebridge', 'Homebridge must run in insecure mode (-I) so its config-ui-x API exposes accessory state. Enter the config-ui-x web address and login below.',
+      el('div', { class: 'grid sm:grid-cols-3 gap-4' },
+        field('config-ui-x address', host), field('Username', user, 'Blank = no-auth mode'), field('Password', pass)),
+      el('div', { class: 'flex items-center gap-3 mt-4' },
         el('button', {
-          class: 'btn-secondary',
-          onclick: () => {
-            if (!name.value.trim()) return;
-            eco.devices.push({ name: name.value.trim(), dimmable: dim.input.checked });
-            name.value = '';
-            drawList();
+          class: 'btn-secondary shrink-0',
+          onclick: async () => {
+            if (!host.value) { toast('Enter the address first', 'warn'); return; }
+            mount(clear(testResult), 'Connecting…');
+            try {
+              const res = await api.post('/api/homebridge/discover', { host: host.value, username: user.value, ...(pass.value ? { password: pass.value } : {}) });
+              mount(clear(testResult), el('span', { class: 'text-emerald-600 font-medium' }, `✓ Connected, ${res.devices.length} accessories found`));
+            } catch (err) {
+              mount(clear(testResult), el('span', { class: 'text-rose-600' }, `✗ ${err.message}`));
+            }
           },
-        }, icon('plus', 'w-5 h-5'), 'Add')),
-      nav('Save manual devices', {
+        }, 'Test connection'),
+        testResult),
+      el('p', { class: 'hint mt-4' }, 'State is polled, so Child Lock corrections lag a few seconds. Prefer Home Assistant or Hubitat for enforced devices. You pick which accessories to import after setup finishes, from the Devices page.'),
+      nav('Save Homebridge setup', {
         onNext: () => {
-          eco.chosen = eco.devices.length > 0;
+          if (!host.value) { toast('The config-ui-x address is needed', 'warn'); return false; }
+          Object.assign(eco, { host: host.value, username: user.value, password: pass.value, chosen: true });
+          ecoScreen = null; draw();
+          return false;
+        },
+      }));
+  }
+
+  function homeAssistantScreen() {
+    const eco = data.ecosystems.homeassistant;
+    const host = el('input', { class: 'input', value: eco.host, placeholder: '192.168.0.20:8123' });
+    const token = el('input', { class: 'input', value: eco.token, placeholder: 'long-lived access token' });
+    const testResult = el('div', { class: 'text-[15px] min-h-6' });
+    return shell('Set up Home Assistant', 'In Home Assistant: your profile → Security → Long-lived access tokens → Create token. Paste the address and token below.',
+      el('div', { class: 'grid sm:grid-cols-2 gap-4' },
+        field('Home Assistant address', host),
+        field('Long-lived access token', token)),
+      el('div', { class: 'flex items-center gap-3 mt-4' },
+        el('button', {
+          class: 'btn-secondary shrink-0',
+          onclick: async () => {
+            if (!host.value || !token.value) { toast('Enter the address and token first', 'warn'); return; }
+            mount(clear(testResult), 'Connecting…');
+            try {
+              const res = await api.post('/api/homeassistant/discover', { host: host.value, token: token.value });
+              mount(clear(testResult), el('span', { class: 'text-emerald-600 font-medium' }, `✓ Connected, ${res.devices.length} devices found`));
+            } catch (err) {
+              mount(clear(testResult), el('span', { class: 'text-rose-600' }, `✗ ${err.message}`));
+            }
+          },
+        }, 'Test connection'),
+        testResult),
+      el('p', { class: 'hint mt-4' }, 'Lights, switches and thermostats arrive over websocket, so Child Lock works at full speed. You pick which devices to import after setup finishes, from the Devices page.'),
+      nav('Save Home Assistant setup', {
+        onNext: () => {
+          if (!host.value || !token.value) { toast('Address and token are both needed', 'warn'); return false; }
+          Object.assign(eco, { host: host.value, token: token.value, chosen: true });
           ecoScreen = null; draw();
           return false;
         },
@@ -200,8 +247,9 @@ export async function wizardPage() {
   function render() {
     if (standbyConnecting) return standbyConnectScreen();
     if (step === 3 && ecoScreen === 'lutron') return lutronScreen();
+    if (step === 3 && ecoScreen === 'homeassistant') return homeAssistantScreen();
     if (step === 3 && ecoScreen === 'hubitat') return hubitatScreen();
-    if (step === 3 && ecoScreen === 'manual') return manualScreen();
+    if (step === 3 && ecoScreen === 'homebridge') return homebridgeScreen();
 
     switch (step) {
       case 0: {
@@ -241,7 +289,7 @@ export async function wizardPage() {
             : 'border-stone-200 dark:border-stone-700 hover:border-accent-300'}`,
           onclick: () => { data.role = value; draw(); },
         },
-          el('span', { class: 'text-accent-600 dark:text-accent-400' }, icon(ic, 'w-7 h-7')),
+          el('span', { class: value === 'standby' ? 'text-sky-600 dark:text-sky-400' : 'text-accent-600 dark:text-accent-400' }, icon(ic, 'w-7 h-7')),
           el('div', {},
             el('div', { class: 'font-semibold text-[16px]' }, title),
             el('div', { class: 'hint' }, desc)));
@@ -250,7 +298,8 @@ export async function wizardPage() {
             roleBtn('primary', 'server', 'Primary', 'Runs the lights. Choose this on your main server (NAS, mini PC).'),
             roleBtn('standby', 'refresh', 'Standby backup', 'Mirrors a primary and takes over automatically if it goes down.')),
           data.role === 'standby' && el('div', { class: 'mt-5 space-y-4' },
-            field('Primary URL', url), field('Sync token', tok),
+            field('Primary URL', url),
+            field('Sync token', tok, 'Copy it from the primary: Settings → System tab → Copy sync token.'),
             el('p', { class: 'hint' }, 'A backup needs nothing else, it copies the location, schedules, devices and login from the primary automatically.')),
           nav(data.role === 'standby' ? 'Connect to primary' : 'Continue', { onNext: () => {
             data.primaryUrl = url?.value ?? ''; data.syncToken = tok?.value ?? '';
@@ -350,32 +399,70 @@ export async function wizardPage() {
       }
       case 5: {
         const topic = el('input', { class: 'input', placeholder: 'a-hard-to-guess-topic-name', value: data.ntfyTopic });
+        const ntfyServer = el('input', { class: 'input', placeholder: 'https://ntfy.sh', value: data.ntfyServer });
         // name/autocomplete hardening so password managers don't autofill the
         // owner's login into the Gmail sender fields (they read as a login form)
         const gUser = el('input', { class: 'input', placeholder: 'you@gmail.com', value: data.gmailUser, name: 'gmail-sender', autocomplete: 'off' });
         const gPass = el('input', { class: 'input', type: 'password', placeholder: 'Gmail app password', name: 'gmail-app-password', autocomplete: 'new-password' });
-        return shell('Notifications', 'Alerts for failover, disconnects, and a schedule summary before each Yom Tov. Optional, you can set these up later in Settings.',
-          el('div', { class: 'space-y-5' },
-            field('ntfy.sh topic', topic, 'Easiest: install the free ntfy app and subscribe to the same topic'),
-            el('div', { class: 'grid sm:grid-cols-2 gap-4' },
-              field('Gmail address', gUser),
-              field('Gmail app password', gPass,
-                el('a', { href: 'https://myaccount.google.com/apppasswords', target: '_blank', class: 'btn-secondary btn-sm !py-1 !px-2.5 mt-1 inline-flex' }, 'Create an app password')))),
+
+        const ntfyOn = checkRow('Push notifications via ntfy.sh', {
+          checked: data.ntfyEnabled,
+          hint: el('span', {}, 'Get the ntfy mobile app for iOS and Android and subscribe to this same topic. Learn more at ',
+            el('a', { href: 'https://ntfy.sh', target: '_blank', rel: 'noopener', class: 'underline hover:text-stone-600 dark:hover:text-stone-300' }, 'ntfy.sh'), '.'),
+        });
+        const gmailOn = checkRow('Email notifications via Gmail', {
+          checked: data.gmailEnabled,
+          hint: 'Receive email notifications via Gmail (your credentials are saved locally and stay private). Pre-Yom Tov schedule summaries are sent via Gmail only.',
+        });
+
+        const ntfyBody = el('div', { class: 'mt-3 grid sm:grid-cols-2 gap-4' },
+          field('Topic', topic),
+          field('Server', ntfyServer, 'Defaults to https://ntfy.sh (the free public service). Only change it if you run your own ntfy server.'));
+        const gmailBody = el('div', { class: 'mt-3 grid sm:grid-cols-2 gap-4' },
+          field('Gmail address', gUser),
+          field('Gmail app password', gPass,
+            el('a', { href: 'https://myaccount.google.com/apppasswords', target: '_blank', rel: 'noopener', class: 'btn-secondary btn-sm !py-1 !px-2.5 mt-1 inline-flex' }, 'Create an app password')));
+
+        // dim + disable a group's fields until its enable checkbox is on
+        const gate = (row, body) => {
+          const apply = () => {
+            const on = row.input.checked;
+            body.classList.toggle('opacity-40', !on);
+            body.classList.toggle('pointer-events-none', !on);
+            body.querySelectorAll('input').forEach((c) => { c.disabled = !on; });
+          };
+          row.input.addEventListener('change', apply);
+          apply();
+        };
+        gate(ntfyOn, ntfyBody);
+        gate(gmailOn, gmailBody);
+
+        const box = (...kids) => el('div', { class: 'rounded-xl border border-stone-200 dark:border-stone-700 p-4' }, ...kids);
+        return shell('Notifications', 'Alerts for failover, disconnects, and a schedule summary before each Yom Tov. All optional, turn on either or both (or set them up later in Settings).',
+          el('div', { class: 'space-y-4' },
+            box(ntfyOn.node, ntfyBody),
+            box(gmailOn.node, gmailBody)),
           nav('Continue', {
             skippable: true,
-            onNext: () => { data.ntfyTopic = topic.value; data.gmailUser = gUser.value; data.gmailAppPassword = gPass.value; },
+            onNext: () => {
+              if (ntfyOn.input.checked && !topic.value.trim()) { toast('Enter an ntfy topic, or turn off ntfy notifications', 'warn'); return false; }
+              if (gmailOn.input.checked && (!gUser.value.trim() || !gPass.value.trim())) { toast('Enter the Gmail address and app password, or turn off Gmail', 'warn'); return false; }
+              data.ntfyEnabled = ntfyOn.input.checked; data.ntfyTopic = topic.value; data.ntfyServer = ntfyServer.value;
+              data.gmailEnabled = gmailOn.input.checked; data.gmailUser = gUser.value; data.gmailAppPassword = gPass.value;
+            },
           }));
       }
       case 6: {
         const enable = checkRow('Enable enforcement now (you must still turn it on per device, nothing is enforced until then)', { checked: data.enforcement });
+        const docLink = (text) => el('a', { href: 'https://smartoneg.com/docs/#child-lock', target: '_blank', rel: 'noopener', class: 'underline hover:text-stone-600 dark:hover:text-stone-300' }, text);
         return shell(el('span', { class: 'flex items-center gap-2' }, icon('lock', 'w-6 h-6 text-accent-600'), 'Child Lock'),
-          'Optional: watch for manual switch presses during Shabbos/Yom Tov and switch the light back after a short delay. A built-in override (4 presses) lets a helper hold a light manually until havdalah.',
+          el('span', {}, 'Optional: watch for manual switch presses or conflicting automations during Shabbos/Yom Tov and switch the lights (or other devices) back after a short delay/grace period. Learn more in the ', docLink('documentation'), '.'),
           el('div', { class: 'rounded-xl bg-accent-50 dark:bg-accent-600/10 border border-accent-200 dark:border-accent-600/40 p-4 mb-5' },
             el('div', { class: 'font-semibold mb-1.5 flex items-center gap-2' }, icon('alert', 'w-5 h-5 text-accent-600'), 'Understand before enabling'),
             el('ul', { class: 'list-disc list-inside space-y-1 text-[15px]' },
-              el('li', {}, 'It only ever acts during Shabbos / Yom Tov (or right before, see settings or documentation), never on weekdays'),
+              el('li', {}, 'It only ever acts during Shabbos / Yom Tov (or right before, see settings or ', docLink('documentation'), '), never on weekdays'),
               el('li', {}, 'A wrong schedule will be actively enforced'),
-              el('li', {}, 'Recommended: leave off now, test one device first'))),
+              el('li', {}, 'Recommended: read the ', docLink('documentation'), ' to understand how Child Lock works'))),
           enable.node,
           nav('Finish setup', {
             onNext: async () => { data.enforcement = enable.input.checked; return finish(); },
@@ -449,14 +536,20 @@ export async function wizardPage() {
         times: { candleLightingMins: data.candleLightingMins, havdalahMins: data.havdalahMins },
         display: { locale: data.locale },
         lutron: { enabled: eco.lutron.chosen, host: eco.lutron.host },
+        homeassistant: eco.homeassistant.chosen
+          ? { enabled: true, host: eco.homeassistant.host, token: eco.homeassistant.token }
+          : { enabled: false },
         hubitat: eco.hubitat.chosen
           ? { enabled: true, host: eco.hubitat.host, appId: eco.hubitat.appId, accessToken: eco.hubitat.accessToken }
+          : { enabled: false },
+        homebridge: eco.homebridge.chosen
+          ? { enabled: true, host: eco.homebridge.host, username: eco.homebridge.username, password: eco.homebridge.password }
           : { enabled: false },
         auth: { email: data.email, password: data.password },
         enforcement: { enabled: data.enforcement },
         notifications: {
-          ntfy: { enabled: Boolean(data.ntfyTopic), topic: data.ntfyTopic },
-          email: { enabled: Boolean(data.gmailUser && data.gmailAppPassword), user: data.gmailUser, appPassword: data.gmailAppPassword, to: data.gmailUser },
+          ntfy: { enabled: Boolean(data.ntfyEnabled && data.ntfyTopic), server: data.ntfyServer.trim() || 'https://ntfy.sh', topic: data.ntfyTopic },
+          email: { enabled: Boolean(data.gmailEnabled && data.gmailUser && data.gmailAppPassword), user: data.gmailUser, appPassword: data.gmailAppPassword, to: data.gmailUser },
         },
         failover: data.role === 'standby' ? { primaryUrl: data.primaryUrl, syncToken: data.syncToken } : {},
         setupComplete: true,
@@ -466,9 +559,6 @@ export async function wizardPage() {
       await api.post('/api/auth/login', { email: data.email, password: data.password });
       if (eco.lutron.chosen && eco.lutron.report) {
         await api.post('/api/zones/import', eco.lutron.report).catch((e) => toast(`Lutron import: ${e.message}`, 'warn'));
-      }
-      for (const d of eco.manual.devices) {
-        await api.post('/api/zones/manual', d).catch(() => {});
       }
       toast('Setup complete!', 'success');
     } catch (err) {

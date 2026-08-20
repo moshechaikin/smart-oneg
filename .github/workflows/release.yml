@@ -58,12 +58,28 @@ jobs:
             fs.writeFileSync("smartoneg.com/version.json", JSON.stringify(out, null, 2) + "\n");
           '
 
+      # Refresh the marketing site's dashboard hero (light + dark) so it shows the
+      # current design and the version just written above. Runs AFTER the bump and
+      # BEFORE the commit, so the PNGs ride along in the same "Release vX" commit
+      # and deploy with the site. Public repo => Actions minutes are unmetered;
+      # this is hero-only (no feature crops / PDFs) so it stays quick.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Refresh dashboard hero screenshots
+        run: HERO_ONLY=1 node scripts/feature-shots.mjs
+
       - name: Commit and tag
         run: |
           V="${{ steps.ver.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json public/js/version.js smartoneg.com/demo smartoneg.com/version.json
+          git add package.json package-lock.json public/js/version.js smartoneg.com/demo smartoneg.com/version.json smartoneg.com/assets/screenshots/dashboard.png smartoneg.com/assets/screenshots/dashboard-dark.png
           git commit -m "Release v$V"
           git tag "v$V"
           git push origin HEAD --tags

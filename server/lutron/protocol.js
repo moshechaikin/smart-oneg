@@ -63,7 +63,7 @@ export function parseLine(rawLine) {
     const code = Number(payload);
     return Number.isInteger(code)
       ? { type: 'error', code, message: `${ERROR_MESSAGES[code] ?? 'Unknown error'} (~ERROR,${code})` }
-      // real Caseta bridges reply with non-numeric payloads for some rejects
+      // real Caséta bridges reply with non-numeric payloads for some rejects
       : { type: 'error', code: null, message: `Bridge error: ${line}` };
   }
   return { type: 'other', raw: line };

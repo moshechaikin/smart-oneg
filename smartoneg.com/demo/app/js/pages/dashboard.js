@@ -40,7 +40,12 @@ function levelBadgeFor(id, level, zones) {
 }
 
 async function draw(container, firstLoad) {
-  if (document.querySelector('#modal-root > *')) return; // don't disturb open dialogs
+  // The 5s background poll must not reshuffle the dashboard under an open
+  // dialog. But the FIRST render is the page's initial paint and must always
+  // run — even if a modal is still closing (e.g. the schedules "discard
+  // changes" confirm on the way here), or the page stays blank until the next
+  // poll fires ~5s later.
+  if (!firstLoad && document.querySelector('#modal-root > *')) return;
   const [health, clusters, zones, settings, compileRes] = await Promise.all([
     api.get('/api/health'),
     api.get(`/api/calendar?from=${todayISO()}&to=${localISO(new Date(Date.now() + 45 * 86400000))}`).catch(() => []),
@@ -77,7 +82,7 @@ async function draw(container, firstLoad) {
     const usedSources = new Set(zones.map((z) => z.source ?? 'lutron'));
     bridgeList = bridgeOrder
       .filter((s) => usedSources.has(s) || (s === 'lutron' ? settings.lutron?.enabled !== false : settings[s]?.enabled))
-      .map((s) => ({ label: BRIDGE_LABEL[s], connected: Boolean(health.lutronConnected) }));
+      .map((s) => ({ label: BRIDGE_LABEL[s], connected: Boolean(health.devicesConnected ?? health.lutronConnected) }));
   }
   bridgeList.sort((a, b) => bridgeOrder.findIndex((s) => BRIDGE_LABEL[s] === a.label) - bridgeOrder.findIndex((s) => BRIDGE_LABEL[s] === b.label));
   const bridgesUp = bridgeList.filter((b) => b.connected).length;

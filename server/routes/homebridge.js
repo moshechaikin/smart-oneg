@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { HomebridgeProvider } from '../devices/HomebridgeProvider.js';
+import { cleanCredential } from './creds.js';
 
 /** Homebridge (config-ui-x) management routes, mirroring Hubitat. */
 export function homebridgeRouter({ configStore, logger }) {
@@ -7,6 +8,9 @@ export function homebridgeRouter({ configStore, logger }) {
 
   router.post('/homebridge/discover', async (req, res) => {
     const merged = { ...configStore.get().homebridge, ...stripEmpty(req.body) };
+    try { if (merged.password != null) merged.password = cleanCredential(merged.password, 'password'); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+    if (merged.host != null) merged.host = String(merged.host).trim();
     const probe = new HomebridgeProvider({ ...merged, logger });
     try {
       res.json({ ok: true, devices: await probe.listDevices() });

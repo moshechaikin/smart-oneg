@@ -26,11 +26,11 @@ async function boot() {
   client = new LutronClient({ host: '127.0.0.1', port: bridge.port, zoneIds: [3, 9], commandTimeoutMs: 500 });
   const tracker = new ZoneStateTracker({ stateStore });
   client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: client });
-  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: client });
+  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
   app = createApp({
     configStore, stateStore, scheduler, tracker, enforcement,
-    lutron: client, failover: null, notifier: { send: async () => ({}) },
+    devices: client, failover: null, notifier: { send: async () => ({}) },
     ring: new LogRing(), logDir: null, logger: null,
   });
   await client.connect();
@@ -67,7 +67,7 @@ describe('API', () => {
     const agent = request.agent(app);
     await agent.post('/api/auth/login').send({ email: 'h@example.com', password: 'shabbos-lights!' }).expect(200);
     const full = await agent.get('/api/health').expect(200);
-    expect(full.body).toMatchObject({ status: 'ok', role: 'primary', lutronConnected: true });
+    expect(full.body).toMatchObject({ status: 'ok', role: 'primary', devicesConnected: true, lutronConnected: true });
     expect(full.body.away).toMatchObject({ from: '2030-01-01', to: '2030-01-05' });
     expect(JSON.stringify(full.body)).not.toMatch(/password|secret/i);
 

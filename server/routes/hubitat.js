@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { HubitatProvider } from '../devices/HubitatProvider.js';
 import { safeEqual } from './auth.js';
+import { cleanCredential } from './creds.js';
 
 /**
  * Unauthenticated webhook for Maker API's "POST device events" URL.
@@ -25,7 +26,10 @@ export function hubitatRouter({ configStore, devices, logger }) {
   /** Probe a Maker API config (from settings form) and list devices. */
   router.post('/hubitat/discover', async (req, res) => {
     const { host, appId, accessToken } = { ...configStore.get().hubitat, ...req.body };
-    const probe = new HubitatProvider({ host, appId, accessToken, logger });
+    let token;
+    try { token = cleanCredential(accessToken, 'access token'); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+    const probe = new HubitatProvider({ host: String(host ?? '').trim(), appId, accessToken: token, logger });
     try {
       res.json({ ok: true, devices: await probe.listDevices() });
     } catch (err) {
@@ -36,7 +40,7 @@ export function hubitatRouter({ configStore, devices, logger }) {
   /**
    * Add selected Hubitat devices as zones. Body: { deviceIds: [..] }.
    * App-level zone ids are assigned from 100 upward so they never collide
-   * with Lutron LIP integration ids (single digits on a Caseta bridge).
+   * with Lutron LIP integration ids (single digits on a Caséta bridge).
    */
   router.post('/hubitat/import', async (req, res) => {
     const cfg = configStore.get();

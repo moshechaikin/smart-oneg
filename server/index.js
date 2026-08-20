@@ -138,32 +138,32 @@ async function main() {
   }
 
   // The DeviceBus is a drop-in for LutronClient's surface; downstream modules
-  // keep their `lutron` parameter name but talk to whichever provider owns
+  // keep their `devices` parameter name but talk to whichever provider owns
   // each zone (Lutron directly; Zigbee/Z-Wave/Ecobee via a Hubitat hub;
   // manual devices via the in-memory virtual provider).
-  const lutron = new DeviceBus({ configStore, logger: logger.child({ mod: 'devices' }) });
+  const devices = new DeviceBus({ configStore, logger: logger.child({ mod: 'devices' }) });
 
   // (Re)register every device provider from the CURRENT config. Extracted so a
   // standby can rebuild its providers after it mirrors new bridge/zone config
   // from the primary — otherwise it would boot with the default (Lutron off)
   // config and, on takeover, hit "no provider registered for source lutron".
   const registerProviders = (c) => {
-    lutron.clearProviders();
+    devices.clearProviders();
     const target = c.lutron.mock ? lutronTarget : { host: c.lutron.host, port: c.lutron.port };
     if (c.lutron.enabled !== false) {
-      lutron.register('lutron', new LutronClient({
+      devices.register('lutron', new LutronClient({
         ...target, username: c.lutron.username, password: c.lutron.password,
         zoneIds: c.zones.filter((z) => (z.source ?? 'lutron') === 'lutron').map((z) => z.externalId ?? z.id),
         primeDelayMs: 750, logger: logger.child({ mod: 'lutron' }),
       }));
     }
-    if (c.hubitat.enabled) lutron.register('hubitat', new HubitatProvider({ ...c.hubitat, logger: logger.child({ mod: 'hubitat' }) }));
-    if (c.ecobee.enabled && c.ecobee.refreshToken) lutron.register('ecobee', new EcobeeProvider({ configStore, logger: logger.child({ mod: 'ecobee' }) }));
-    if (c.homeassistant?.enabled) lutron.register('homeassistant', new HomeAssistantProvider({ ...c.homeassistant, logger: logger.child({ mod: 'homeassistant' }) }));
-    if (c.homebridge?.enabled) lutron.register('homebridge', new HomebridgeProvider({ ...c.homebridge, logger: logger.child({ mod: 'homebridge' }) }));
-    if (c.matter?.enabled) lutron.register('matter', new MatterProvider({ dataDir, logger: logger.child({ mod: 'matter' }) }));
-    if (c.envisalink?.enabled) lutron.register('envisalink', new EnvisalinkProvider({ ...c.envisalink, logger: logger.child({ mod: 'envisalink' }) }));
-    lutron.register('virtual', new VirtualProvider());
+    if (c.hubitat.enabled) devices.register('hubitat', new HubitatProvider({ ...c.hubitat, logger: logger.child({ mod: 'hubitat' }) }));
+    if (c.ecobee.enabled && c.ecobee.refreshToken) devices.register('ecobee', new EcobeeProvider({ configStore, logger: logger.child({ mod: 'ecobee' }) }));
+    if (c.homeassistant?.enabled) devices.register('homeassistant', new HomeAssistantProvider({ ...c.homeassistant, logger: logger.child({ mod: 'homeassistant' }) }));
+    if (c.homebridge?.enabled) devices.register('homebridge', new HomebridgeProvider({ ...c.homebridge, logger: logger.child({ mod: 'homebridge' }) }));
+    if (c.matter?.enabled) devices.register('matter', new MatterProvider({ dataDir, logger: logger.child({ mod: 'matter' }) }));
+    if (c.envisalink?.enabled) devices.register('envisalink', new EnvisalinkProvider({ ...c.envisalink, logger: logger.child({ mod: 'envisalink' }) }));
+    devices.register('virtual', new VirtualProvider());
   };
   registerProviders(cfg);
 
@@ -180,7 +180,7 @@ async function main() {
   let providerFingerprint = deviceFingerprint(cfg);
 
   const tracker = new ZoneStateTracker({ stateStore, logger: logger.child({ mod: 'tracker' }) });
-  lutron.on('zoneLevel', (e) => tracker.onZoneLevel(e));
+  devices.on('zoneLevel', (e) => tracker.onZoneLevel(e));
   const notifier = new Notifier({ configStore, logger: logger.child({ mod: 'notify' }) });
   // Drive-authority: a primary always acts; a standby only when it has taken
   // over. Gates driving lights AND all notifications so an INACTIVE backup
@@ -192,7 +192,7 @@ async function main() {
   // not just redundant but can falsely latch zones.
   const hasControl = () => configStore.get().instance.role === 'primary' || Boolean(failover?.drivesLights());
   const enforcement = new EnforcementEngine({
-    configStore, stateStore, tracker, lutron, canAct: hasControl,
+    configStore, stateStore, tracker, devices, canAct: hasControl,
     // Assigned just below; a deviation can only arrive once the scheduler is up.
     isTestMode: () => scheduler.isTestMode(),
     logger: logger.child({ mod: 'enforce' }),
@@ -204,14 +204,14 @@ async function main() {
   });
   const scheduler = new Scheduler({
     // no zoneLock key: the Scheduler ADOPTS enforcement's — see its constructor
-    configStore, stateStore, tracker, enforcement, lutron, notifier, canAct: hasControl,
+    configStore, stateStore, tracker, enforcement, devices, notifier, canAct: hasControl,
     logger: logger.child({ mod: 'scheduler' }),
   });
   // enforcement judges the cluster window on the scheduler's clock, so Child
   // Lock works inside test mode's virtual time too
   enforcement.setClock(() => scheduler.now());
   failover = new FailoverManager({
-    configStore, stateStore, scheduler, lutron, notifier, logger: logger.child({ mod: 'failover' }),
+    configStore, stateStore, scheduler, devices, notifier, logger: logger.child({ mod: 'failover' }),
   });
 
   // Device/bridge/zone config can change at RUNTIME on both roles — the setup
@@ -230,7 +230,7 @@ async function main() {
     // a standby only after takeover (an idle standby stays off the bridge) —
     // and only if not already connected, so back-to-back changes can't stack
     // parallel retry chains.
-    if (hasControl() && !lutron.connected) connectWithRetry(lutron, logger);
+    if (hasControl() && !devices.connected) connectWithRetry(devices, logger);
   });
 
   const versionChecker = new VersionChecker({
@@ -241,19 +241,19 @@ async function main() {
   // when it comes back — but only if we actually alerted about the outage.
   let disconnectTimer = null;
   let alertedDisconnect = false;
-  lutron.on('disconnected', () => {
+  devices.on('disconnected', () => {
     disconnectTimer = setTimeout(() => { alertedDisconnect = true; notifier.send('lutron-disconnected', { minutes: 5 }); }, 5 * 60_000);
     disconnectTimer.unref?.();
   });
-  lutron.on('connected', () => {
+  devices.on('connected', () => {
     clearTimeout(disconnectTimer);
     if (alertedDisconnect) { alertedDisconnect = false; notifier.send('bridge-reconnected', {}); }
   });
-  lutron.on('ready', () => scheduler.reconcile().catch((err) => logger.error({ err: err.message }, 'reconcile on ready failed')));
+  devices.on('ready', () => scheduler.reconcile().catch((err) => logger.error({ err: err.message }, 'reconcile on ready failed')));
 
   const app = createApp({
     dataDir,
-    configStore, stateStore, scheduler, tracker, enforcement, lutron, devices: lutron,
+    configStore, stateStore, scheduler, tracker, enforcement, devices,
     failover, versionChecker, notifier, ring, logDir, logger,
   });
   const server = app.listen(PORT, () => logger.info({ port: PORT }, 'http listening'));
@@ -263,7 +263,7 @@ async function main() {
 
   const isPrimary = () => configStore.get().instance.role === 'primary';
   if (isPrimary()) {
-    connectWithRetry(lutron, logger);
+    connectWithRetry(devices, logger);
   } else {
     failover.start();
     logger.info('standby mode: monitoring primary, Lutron connection deferred until takeover');
@@ -362,7 +362,7 @@ async function main() {
       try { fs.appendFileSync(path.join(logDirPath, 'app.log'), `${JSON.stringify({ level: 30, time: Date.now(), sig, msg: `shutting down (${sig})` })}\n`); } catch { /* ignore */ }
       scheduler.stop();
       failover.stop();
-      lutron.close();
+      devices.close();
       stateStore.close();
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 3000).unref();
@@ -377,10 +377,10 @@ function humanizeDuration(ms) {
   return `${hr} hour${hr === 1 ? '' : 's'}`;
 }
 
-function connectWithRetry(lutron, logger, delayMs = 5000) {
-  lutron.connect().catch((err) => {
-    logger.warn({ err: err.message, retryInMs: delayMs }, 'initial lutron connect failed, retrying');
-    setTimeout(() => connectWithRetry(lutron, logger, Math.min(delayMs * 2, 60_000)), delayMs).unref?.();
+function connectWithRetry(devices, logger, delayMs = 5000) {
+  devices.connect().catch((err) => {
+    logger.warn({ err: err.message, retryInMs: delayMs }, 'initial devices connect failed, retrying');
+    setTimeout(() => connectWithRetry(devices, logger, Math.min(delayMs * 2, 60_000)), delayMs).unref?.();
   });
 }
 

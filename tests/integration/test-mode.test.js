@@ -40,8 +40,8 @@ describe('test mode', () => {
     stateStore.load();
     const tracker = new ZoneStateTracker({ stateStore });
     client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: client });
-    return new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: client });
+    return new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
   }
 
   it('drives the real bridge when the virtual clock reaches a rule', async () => {
@@ -104,8 +104,8 @@ describe('test mode', () => {
     const stateStore = new StateStore({ dataDir: dir, debounceMs: 10 });
     stateStore.load();
     const tracker = new ZoneStateTracker({ stateStore });
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: client });
-    scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: client });
+    scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
 
     await expect(scheduler.setTestMode(Date.now() + 3_600_000)).rejects.toThrow(/real Shabbos/);
     expect(scheduler.testModeInfo().active).toBe(false);

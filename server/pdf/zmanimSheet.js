@@ -685,7 +685,7 @@ function footer(doc, cal) {
   doc.font('Helvetica-Oblique').fontSize(6.8).fillColor('#9ca3af').text(
     `All times dynamically calculated with @hebcal/core for ${cal.location.city || 'your location'} `
     + `(${Number(cal.location.lat).toFixed(4)}, ${Number(cal.location.lng).toFixed(4)}).`,
-    36, 792 - 31, { width: 612 - 72, align: 'center', lineBreak: false },
+    36, 792 - 46, { width: 612 - 72, align: 'center', lineBreak: false },
   );
   smartonegNod(doc);
 }

@@ -67,8 +67,8 @@ describe('(full stack, real wire) a slow Child Lock correction cannot clobber a 
     };
 
     const zoneLock = new ZoneLock(); // shared, exactly as index.js wires it
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: bus, zoneLock });
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: bus, zoneLock });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: bus, zoneLock });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: bus, zoneLock });
 
     tracker.setExpected(8, 100); // schedule currently wants the zone ON
     await client.setLevel(8, 100);

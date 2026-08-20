@@ -35,7 +35,7 @@ describe('protocol helpers', () => {
     expect(parseLine('~OUTPUT,3,1,90.00')).toEqual({ type: 'output', id: 3, action: 1, level: 90 });
     expect(parseLine('~ERROR,6')).toMatchObject({ type: 'error', code: 6 });
     expect(parseLine('~ERROR,6').message).toMatch(/Unsupported command/);
-    // real Caseta bridges emit non-numeric error payloads for some rejects
+    // real Caséta bridges emit non-numeric error payloads for some rejects
     expect(parseLine('~ERROR,Enum Parse Error')).toMatchObject({ type: 'error', code: null });
     expect(parseLine('GNET> ~OUTPUT,3,1,0.00')).toMatchObject({ type: 'output', id: 3 });
   });

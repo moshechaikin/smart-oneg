@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { HomeAssistantProvider } from '../devices/HomeAssistantProvider.js';
+import { cleanCredential } from './creds.js';
 
 /** Home Assistant management routes (discover + import), mirroring Hubitat. */
 export function homeAssistantRouter({ configStore, logger }) {
@@ -7,8 +8,11 @@ export function homeAssistantRouter({ configStore, logger }) {
 
   /** Probe an HA config (from the settings form) and list entities. */
   router.post('/homeassistant/discover', async (req, res) => {
-    const { host, token } = { ...configStore.get().homeassistant, ...stripEmpty(req.body) };
-    const probe = new HomeAssistantProvider({ host, token, logger });
+    const merged = { ...configStore.get().homeassistant, ...stripEmpty(req.body) };
+    let token;
+    try { token = cleanCredential(merged.token, 'token'); }
+    catch (err) { return res.status(400).json({ ok: false, error: err.message }); }
+    const probe = new HomeAssistantProvider({ host: String(merged.host ?? '').trim(), token, logger });
     try {
       res.json({ ok: true, devices: await probe.listDevices() });
     } catch (err) {

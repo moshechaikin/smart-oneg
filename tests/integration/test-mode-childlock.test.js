@@ -47,10 +47,10 @@ async function boot({ enforce = true } = {}) {
   const tracker = new ZoneStateTracker({ stateStore });
   client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
   const enforcement = new EnforcementEngine({
-    configStore, stateStore, tracker, lutron: client,
+    configStore, stateStore, tracker, devices: client,
     isTestMode: () => scheduler.isTestMode(), // production wiring (index.js)
   });
-  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
   enforcement.setClock(() => scheduler.now()); // production wiring (index.js)
   stack = { configStore, stateStore, tracker, enforcement };
   return stack;

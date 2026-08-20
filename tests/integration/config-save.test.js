@@ -52,8 +52,8 @@ async function boot() {
   stateStore.load();
   const tracker = new ZoneStateTracker({ stateStore });
   client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: client });
-  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: client });
+  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
   enforcement.setClock(() => scheduler.now()); // production wiring (index.js)
   scheduler.recompile(); // boot compile on the (faked) real clock
   stack = { configStore, stateStore, tracker, enforcement };

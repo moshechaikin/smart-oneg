@@ -12,7 +12,7 @@ function makeScheduler(canAct) {
     stateStore: { get: () => ({}) },
     tracker: { reported: () => 0, expected: () => 0, expectCommand: noop, setExpected: noop },
     enforcement: { isLatched: () => false, scheduledActionExecuted: noop, setActiveCluster: noop },
-    lutron: {
+    devices: {
       connected: false,
       coerceLevel: (_z, l) => l,
       setLevelVerified: async (z, l) => { driven.push({ z, l }); },
@@ -48,7 +48,7 @@ describe('scheduler drive-authority gate (canAct)', () => {
         stateStore: { get: () => ({}) },
         tracker: { reported: () => 0, expected: () => 0, expectCommand: noop, setExpected: noop },
         enforcement: { isLatched: () => false, scheduledActionExecuted: noop },
-        lutron: { connected: true, coerceLevel: (_z, l) => l, setLevelVerified: async () => { throw new Error('bridge down'); } },
+        devices: { connected: true, coerceLevel: (_z, l) => l, setLevelVerified: async () => { throw new Error('bridge down'); } },
         notifier: { send: async (event, p) => { sent.push({ event, p }); } },
         canAct,
       });

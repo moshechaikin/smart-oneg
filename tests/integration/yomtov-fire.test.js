@@ -58,8 +58,8 @@ describe('Yom Tov scheduling fires for real', () => {
     client = new LutronClient({ host: '127.0.0.1', port: bridge.port, zoneIds: [2], commandTimeoutMs: 500 });
     const tracker = new ZoneStateTracker({ stateStore });
     client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: client });
-    scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: client });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: client });
+    scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: client });
     await client.connect();
 
     // "boot" mid-Yom-Tov: compile + catch-up + arm timers

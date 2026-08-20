@@ -38,7 +38,7 @@ export class Scheduler extends EventEmitter {
   #caughtUpClusterId = null; // cluster whose entry catch-up already ran (or was covered by a reconcile)
 
   constructor({
-    configStore, stateStore, tracker, enforcement, lutron, logger = null, notifier = null, canAct = () => true,
+    configStore, stateStore, tracker, enforcement, devices, logger = null, notifier = null, canAct = () => true,
     // Optional override; see the adoption below.
     zoneLock = null,
   }) {
@@ -58,7 +58,7 @@ export class Scheduler extends EventEmitter {
     this.state = stateStore;
     this.tracker = tracker;
     this.enforcement = enforcement;
-    this.lutron = lutron;
+    this.devices = devices;
     this.log = logger;
     this.notifier = notifier;
     this.compiled = { actions: [], allActions: [], report: null, conflicts: [], clusters: [] };
@@ -122,11 +122,11 @@ export class Scheduler extends EventEmitter {
       for (const z of this.config.get().zones) {
         if (z.kind === 'automation') continue; // momentary: exit-restore must never re-fire a trigger
         let level = this.tracker.reported?.(z.id) ?? this.tracker.expected?.(z.id);
-        if (this.lutron.connected) {
+        if (this.devices.connected) {
           // Prefer a live read, but never let a failed/empty query drop a zone we
           // already know about — otherwise it won't be restored on exit.
           try {
-            const live = await this.lutron.queryLevel(z.id);
+            const live = await this.devices.queryLevel(z.id);
             if (live !== undefined && live !== null) level = live;
           } catch { /* keep tracker value */ }
         }
@@ -150,7 +150,7 @@ export class Scheduler extends EventEmitter {
     this.testOffsetMs = 0;
     for (const z of this.config.get().zones) this.enforcement.clearLatch?.(z.id);
     this.recompile(); // back on the real clock (weekday: nothing scheduled)
-    if (restore && this.testSnapshot && this.lutron.connected) {
+    if (restore && this.testSnapshot && this.devices.connected) {
       this.log?.warn({ zones: this.testSnapshot.size }, 'TEST MODE stopped — restoring weekday snapshot');
       for (const [id, snap] of this.testSnapshot) {
         // Same zone-lock as reconcile/childLockCatchup/executeAction — the
@@ -193,15 +193,15 @@ export class Scheduler extends EventEmitter {
       if (a.flash) continue; // flash members are reminders, not preview state
       await this.#withZoneLock(a.zone, async () => {
         // thermostat mode members drive the preset / hvac mode, not a level
-        if (a.preset != null) { await this.lutron.setPreset?.(a.zone, a.preset).catch(() => {}); return; }
-        if (a.hvacMode != null) { await this.lutron.setHvacMode?.(a.zone, a.hvacMode).catch(() => {}); return; }
+        if (a.preset != null) { await this.devices.setPreset?.(a.zone, a.preset).catch(() => {}); return; }
+        if (a.hvacMode != null) { await this.devices.setHvacMode?.(a.zone, a.hvacMode).catch(() => {}); return; }
         const level = await driveZone(this, a.zone, a.level, { verified: false, fadeSec: a.fadeSec ?? 0 }).catch(() => null);
         if (level === null) return; // best-effort preview: a failed write skips the color ride-along too
         const zc = this.config.get().zones.find((z) => z.id === a.zone);
         if (level > 0 && a.rgb != null && zc?.rgb) {
-          await this.lutron.setColor?.(a.zone, a.rgb).catch(() => {});
+          await this.devices.setColor?.(a.zone, a.rgb).catch(() => {});
         } else if (level > 0 && a.kelvin != null && zc?.colorTemp) {
-          await this.lutron.setColorTemp?.(a.zone, a.kelvin).catch(() => {});
+          await this.devices.setColorTemp?.(a.zone, a.kelvin).catch(() => {});
         }
       });
     }
@@ -372,7 +372,7 @@ export class Scheduler extends EventEmitter {
     // the recovered primary emits 'change' -> recompile -> reconcile, which
     // would drive every zone right alongside the primary.
     if (!this.canAct()) return;
-    if (!this.lutron.connected) return;
+    if (!this.devices.connected) return;
     // Zones run CONCURRENTLY, each on its own per-zone lock queue: a stalled
     // zone (a device timeout, or an in-flight flash holding that zone's lock
     // for ~2s) must not head-of-line-block every later zone. The wire is still
@@ -553,7 +553,7 @@ export class Scheduler extends EventEmitter {
   async #childLockCatchup() {
     const cfg = this.config.get();
     if (!this.canAct()) return; // same drive-authority guard as reconcile()
-    if (!cfg.enforcement.enabled || !this.lutron.connected) return;
+    if (!cfg.enforcement.enabled || !this.devices.connected) return;
     // concurrent per-zone turns for the same reason as reconcile(): a stalled
     // zone must not delay every later zone's catch-up
     await Promise.all(
@@ -570,7 +570,7 @@ export class Scheduler extends EventEmitter {
     if (this.enforcement.isLatched(zone)) return;
     const expected = expectedLevel(this.compiled.allActions, zone, this.now());
     if (expected === undefined) return;
-    const level = this.lutron.coerceLevel?.(zone, expected) ?? expected;
+    const level = this.devices.coerceLevel?.(zone, expected) ?? expected;
     const reported = this.tracker.reported(zone);
     if (reported !== undefined && Math.abs(reported - level) <= 1) return;
     try {
@@ -640,15 +640,15 @@ export class Scheduler extends EventEmitter {
       if (action.type === 'setAutomation') {
         // enable/disable an HA automation — a persistent state, not a level, so
         // it bypasses the tracker/enforcement entirely
-        await this.lutron.setAutomationEnabled?.(action.zone, action.enabled);
+        await this.devices.setAutomationEnabled?.(action.zone, action.enabled);
       } else if (action.type === 'setPreset') {
-        await this.lutron.setPreset?.(action.zone, action.preset);
+        await this.devices.setPreset?.(action.zone, action.preset);
       } else if (action.type === 'setHvacMode') {
-        await this.lutron.setHvacMode?.(action.zone, action.hvacMode);
+        await this.devices.setHvacMode?.(action.zone, action.hvacMode);
       } else if (action.type === 'flash') {
         // Restore the actual current state — a reminder blink must never
         // change what the lights were doing (reported beats stale expected).
-        const restore = this.lutron.coerceLevel?.(
+        const restore = this.devices.coerceLevel?.(
           action.zone, this.tracker.reported(action.zone) ?? this.tracker.expected(action.zone) ?? 0,
         ) ?? this.tracker.reported(action.zone) ?? 0;
         const times = Math.max(1, action.times ?? 1);
@@ -657,12 +657,12 @@ export class Scheduler extends EventEmitter {
         // at the final blink level, silently inverting what the schedule wants
         // and turning a benign on-light into an enforcement fight → false latch).
         for (const level of blinkLevels(restore, times)) this.tracker.expectEcho(action.zone, level);
-        await this.lutron.flash(action.zone, times, restore);
+        await this.devices.flash(action.zone, times, restore);
       } else if (this.config.get().zones.find((z) => z.id === action.zone)?.kind === 'automation') {
         // momentary trigger (HA automation/script): fire AT MOST ONCE — the
         // verify/retry path could re-run an action that actually went through
         // (a trigger never holds a queryable level to verify against)
-        await this.lutron.setLevel(action.zone, action.level, 0);
+        await this.devices.setLevel(action.zone, action.level, 0);
       } else {
         // retries + verify-before-fail: the user is only notified below when
         // the device really couldn't be driven AND isn't already at the level
@@ -672,9 +672,9 @@ export class Scheduler extends EventEmitter {
         // can't fail the action
         const zc = this.config.get().zones.find((z) => z.id === action.zone);
         if (level > 0 && action.rgb != null && zc?.rgb) {
-          await this.lutron.setColor?.(action.zone, action.rgb).catch(() => {});
+          await this.devices.setColor?.(action.zone, action.rgb).catch(() => {});
         } else if (level > 0 && action.kelvin != null && zc?.colorTemp) {
-          await this.lutron.setColorTemp?.(action.zone, action.kelvin).catch(() => {});
+          await this.devices.setColorTemp?.(action.zone, action.kelvin).catch(() => {});
         }
       }
       this.enforcement.scheduledActionExecuted(action.zone);

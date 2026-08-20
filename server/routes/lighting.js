@@ -4,7 +4,7 @@ import { findZoneReferences } from '../engine/references.js';
 import { blinkLevels } from '../devices/DeviceBus.js';
 import { driveZone } from '../engine/driveZone.js';
 
-export function lightingRouter({ configStore, stateStore, scheduler, tracker, enforcement, lutron, logger }) {
+export function lightingRouter({ configStore, stateStore, scheduler, tracker, enforcement, devices, logger }) {
   const router = Router();
   // Manual zone writes must serialize on the SAME per-zone lock as the
   // scheduler/enforcement writers (scheduler.zoneLock is the shared instance
@@ -16,7 +16,7 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
 
   router.get('/zones', (_req, res) => {
     const zones = configStore.get().zones.map((z) => {
-      const mode = (z.kind === 'thermostat' || z.kind === 'vacuum' || z.colorTemp || z.rgb) ? (lutron.getMode?.(z.id) ?? {}) : {};
+      const mode = (z.kind === 'thermostat' || z.kind === 'vacuum' || z.colorTemp || z.rgb) ? (devices.getMode?.(z.id) ?? {}) : {};
       return {
         ...z,
         expectedLevel: tracker.expected(z.id),
@@ -39,8 +39,8 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
     if (!zone) return res.status(404).json({ error: 'zone not found' });
     const { preset, hvacMode } = req.body ?? {};
     try {
-      if (preset != null) await lutron.setPreset?.(id, preset);
-      if (hvacMode != null) await lutron.setHvacMode?.(id, hvacMode);
+      if (preset != null) await devices.setPreset?.(id, preset);
+      if (hvacMode != null) await devices.setHvacMode?.(id, hvacMode);
       res.json({ ok: true });
     } catch (err) {
       res.status(502).json({ error: err.message });
@@ -54,7 +54,7 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
     if (!configStore.get().zones.some((z) => z.id === id)) return res.status(404).json({ error: 'zone not found' });
     if (!Number.isFinite(kelvin)) return res.status(400).json({ error: 'kelvin required' });
     try {
-      await lutron.setColorTemp?.(id, kelvin);
+      await devices.setColorTemp?.(id, kelvin);
       res.json({ ok: true });
     } catch (err) {
       res.status(502).json({ error: err.message });
@@ -68,7 +68,7 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
     if (!configStore.get().zones.some((z) => z.id === id)) return res.status(404).json({ error: 'zone not found' });
     if (!Array.isArray(rgb) || rgb.length !== 3 || !rgb.every((v) => Number.isFinite(v))) return res.status(400).json({ error: 'rgb [r,g,b] required' });
     try {
-      await lutron.setColor?.(id, rgb);
+      await devices.setColor?.(id, rgb);
       res.json({ ok: true });
     } catch (err) {
       res.status(502).json({ error: err.message });
@@ -346,7 +346,7 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
     try {
       // verify-before-fail (attempts: 2) so a slow/no-op echo doesn't toast a
       // false error, without the schedule paths' full retry patience
-      await locked(id, () => driveZone({ lutron, tracker }, id, level, { fadeSec, attempts: 2 }));
+      await locked(id, () => driveZone({ devices, tracker }, id, level, { fadeSec, attempts: 2 }));
       logger?.warn({ zone: id, to: level, manual: true, duringCluster: Boolean(active) }, 'manual zone command');
       res.json({ ok: true });
     } catch (err) {
@@ -368,9 +368,9 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
         // Read it INSIDE the lock turn: a queued same-zone write that ran just
         // before us may have changed the level we must restore to.
         const raw = tracker.reported(id) ?? tracker.expected(id) ?? 0;
-        const restore = lutron.coerceLevel?.(id, raw) ?? raw;
+        const restore = devices.coerceLevel?.(id, raw) ?? raw;
         for (const level of blinkLevels(restore, times)) tracker.expectCommand(id, level);
-        await lutron.flash(id, times, restore);
+        await devices.flash(id, times, restore);
       });
       res.json({ ok: true });
     } catch (err) {
@@ -388,10 +388,10 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
     res.write('retry: 3000\n\n');
     const onLevel = (e) => res.write(`data: ${JSON.stringify(e)}\n\n`);
     const onMode = (e) => res.write(`data: ${JSON.stringify({ ...e, mode: true })}\n\n`);
-    lutron.on('zoneLevel', onLevel);
-    lutron.on('zoneMode', onMode);
+    devices.on('zoneLevel', onLevel);
+    devices.on('zoneMode', onMode);
     const ping = setInterval(() => res.write(': ping\n\n'), 25_000);
-    req.on('close', () => { lutron.off('zoneLevel', onLevel); lutron.off('zoneMode', onMode); clearInterval(ping); });
+    req.on('close', () => { devices.off('zoneLevel', onLevel); devices.off('zoneMode', onMode); clearInterval(ping); });
   });
 
   router.get('/latches', (_req, res) => {

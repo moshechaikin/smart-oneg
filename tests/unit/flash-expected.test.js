@@ -26,7 +26,7 @@ describe('flash never rewrites expected level', () => {
       stateStore: state,
       tracker,
       enforcement: { isLatched: () => false, scheduledActionExecuted: noop },
-      lutron: {
+      devices: {
         connected: true,
         coerceLevel: (_z, l) => l,
         flash: (zone, times, level) => { flashes.push({ zone, times, level }); return Promise.resolve(); },

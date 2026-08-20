@@ -113,7 +113,9 @@ function attribution(cls = '', beforeAbout) {
       title: updateReady ? `Update available: ${healthCache.update.latest}` : '',
       onclick: () => { beforeAbout?.(); aboutModal(); },
     }, icon('info', 'w-4 h-4'), el('span', {}, 'About'), el('span', { class: 'opacity-60' }, APP_VERSION),
-      updateReady && el('span', { class: 'ml-0.5 inline-block w-2 h-2 rounded-full bg-emerald-500', title: 'Update available' })),
+      // when an update is waiting, a small blue "Update" pill (kept tiny so it
+      // never wraps the nav row on mobile) replaces the old plain green dot
+      updateReady && el('span', { class: 'ml-1 inline-flex items-center rounded-full bg-blue-600 text-white text-[10px] font-semibold leading-none px-1.5 py-0.5', title: `Update available: ${healthCache.update.latest}` }, 'Update')),
     // "Moshe Chaikin" kept on one line, linked to GitHub
     el('div', { class: 'mt-2' }, 'Developed by ',
       el('a', { href: 'https://github.com/moshechaikin/', target: '_blank', class: 'whitespace-nowrap underline hover:text-stone-600 dark:hover:text-stone-300' }, 'Moshe Chaikin'),
@@ -151,7 +153,7 @@ function aboutModal() {
       healthCache?.update?.updateAvailable && el('div', { class: 'rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-3.5 text-[15px]' },
         el('div', { class: 'font-semibold flex items-center gap-2 text-emerald-700 dark:text-emerald-300' }, icon('download', 'w-4.5 h-4.5'), `Update available, ${healthCache.update.latest}`),
         healthCache.update.notes && el('div', { class: 'hint mt-1 whitespace-pre-wrap' }, healthCache.update.notes),
-        el('a', { href: '#/settings', class: 'btn-secondary btn-sm mt-2 inline-flex', onclick: () => document.getElementById('modal-root').replaceChildren() }, 'Go to Settings to update')),
+        el('a', { href: '#/settings', class: 'btn-secondary btn-sm mt-2 inline-flex', onclick: () => { localStorage.setItem('settings-tab', 'system'); document.getElementById('modal-root').replaceChildren(); } }, 'Go to Settings to update')),
       el('div', { class: 'flex flex-wrap gap-2.5' },
         linkBtn('https://github.com/moshechaikin/smart-oneg', 'github', 'GitHub'),
         linkBtn('https://smartoneg.com/docs', 'book', 'Docs')),
@@ -208,7 +210,7 @@ function optimisticBanner(patch) {
  *  banner shows/hides instantly and never covers the header/sidebar. */
 function refreshBanners() {
   root.querySelectorAll('[data-banner]').forEach((b) => b.remove());
-  const banners = [failoverBanner(), awayBanner(), testModeBanner(), scenePreviewBanner()].filter(Boolean);
+  const banners = [multipleBackupsBanner(), failoverBanner(), awayBanner(), testModeBanner(), scenePreviewBanner()].filter(Boolean);
   if (banners.length) root.prepend(...banners);
   syncBannerOffset();
 }
@@ -239,6 +241,30 @@ async function exitAwayMode() {
     toast('Away mode off, back to your regular schedule.', 'info');
   } catch (err) { toast(err.message, 'error'); }
   await refreshShell();
+}
+
+/**
+ * Primary-only red error banner: more than one backup instance is checking in.
+ * Multiple standbys have no coordination — they would all take over at once and
+ * fight over the bridge (connection-slot exhaustion, cross-instance deviations
+ * that can false-latch Child Lock zones, flicker on flashes). Only one standby
+ * should ever run. The flag comes from the primary counting distinct backup
+ * instance ids that polled /api/health within the live window.
+ */
+function multipleBackupsBanner() {
+  const fo = healthCache?.failover;
+  if (!fo || fo.role !== 'primary' || !fo.multipleBackups) return false;
+  const base = 'banner-enter sticky top-0 z-40 flex items-center gap-2 px-4 safe-top-pad pb-2 text-[14px] font-semibold shadow cursor-pointer';
+  return el('div', {
+    'data-banner': true, class: `${base} bg-rose-600 text-white`, role: 'button', tabindex: '0',
+    title: 'Open backup settings',
+    // deep-link to the System tab (Primary & Backup Instance) so it's one tap
+    // from the warning to where the failover/backup config lives
+    onclick: () => { localStorage.setItem('settings-tab', 'system'); location.hash = '#/settings'; },
+  },
+    icon('alert', 'w-4.5 h-4.5 shrink-0'),
+    el('span', { class: 'flex-1 min-w-0' },
+      `Multiple backup instances detected (${fo.backupCount}). Run only ONE standby. Several will fight over the bridge and can disrupt Child Lock, so shut the extras down.`));
 }
 
 /**
@@ -402,6 +428,7 @@ function shell(contentNode, route) {
       + 'px-2.5 py-1 text-xs font-medium text-white shadow-lg opacity-0 transition-opacity duration-150 group-hover:opacity-100',
   }, 'About SmartOneg');
   mount(clear(root),
+    multipleBackupsBanner(),
     failoverBanner(),
     awayBanner(),
     testModeBanner(),

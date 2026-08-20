@@ -555,6 +555,7 @@ async function render(container) {
   const eTo = text(s.notifications.email.to, { placeholder: 'you@gmail.com, spouse@gmail.com', name: 'notify-recipients', autocomplete: 'off' });
   const nEnabled = checkRow('ntfy.sh push (simplest, free app, no account)', { checked: s.notifications.ntfy.enabled });
   const nTopic = text(s.notifications.ntfy.topic, { placeholder: 'a-hard-to-guess-topic' });
+  const nServer = text(s.notifications.ntfy.server ?? 'https://ntfy.sh', { placeholder: 'https://ntfy.sh' });
   const summaryDays = text(s.notifications.preYomTovSummaryDays, { type: 'number', min: 1, max: 30, class: 'input !w-24 text-center' });
 
   // per-category, per-channel opt-out matrix (everything on by default)
@@ -596,7 +597,7 @@ async function render(container) {
 
   const notifyCard = sectionCard('bell', 'Notifications',
     el('div', { class: 'space-y-5' },
-      el('div', {}, eEnabled.node,
+      el('div', { class: 'rounded-xl border border-stone-200 dark:border-stone-700 p-4' }, eEnabled.node,
         gateGroup(eEnabled, el('div', { class: 'mt-2 space-y-4' },
           el('div', { class: 'grid sm:grid-cols-3 gap-4' },
             field('Gmail address', eUser),
@@ -607,14 +608,15 @@ async function render(container) {
           // email-only (too long for push), so it lives here and greys out with email
           field('Send the Yom Tov schedule summary (days before)', summaryDays,
             'The full schedule preview is emailed this many days before each Yom Tov.')))),
-      el('div', {}, nEnabled.node,
+      el('div', { class: 'rounded-xl border border-stone-200 dark:border-stone-700 p-4' }, nEnabled.node,
         gateGroup(nEnabled, el('div', {},
           el('p', { class: 'hint mt-1 mb-2' },
             'ntfy.sh is a free push service that needs no account. Pick a hard-to-guess topic name below, then install the ',
             el('a', { href: 'https://ntfy.sh', target: '_blank', class: 'underline' }, 'ntfy app'),
             ' on your iPhone or Android and subscribe to that same topic to receive alerts (bridge disconnects, failover, guest-mode changes, pre-Yom-Tov summaries).'),
           el('div', { class: 'grid sm:grid-cols-2 gap-4 mt-1' },
-            field('Topic', nTopic, 'e.g. shabbos-alerts-a8f3c1, anyone who knows it can send you notifications, so keep it private'))))),
+            field('Topic', nTopic, 'e.g. shabbos-alerts-a8f3c1, anyone who knows it can send you notifications, so keep it private'),
+            field('Server', nServer, 'Leave as https://ntfy.sh for the free public service, or enter your own self-hosted ntfy server URL'))))),
       catMatrix),
     el('div', {
       class: 'lg:sticky lg:bottom-0 z-10 '
@@ -626,7 +628,7 @@ async function render(container) {
         class: 'btn', 'data-settings-save': '1',
         onclick: () => save({ notifications: {
           email: { enabled: eEnabled.input.checked, user: eUser.value, to: eTo.value, ...(ePass.value ? { appPassword: ePass.value } : {}) },
-          ntfy: { enabled: nEnabled.input.checked, topic: nTopic.value },
+          ntfy: { enabled: nEnabled.input.checked, server: nServer.value.trim() || 'https://ntfy.sh', topic: nTopic.value },
           preYomTovSummaryDays: Number(summaryDays.value),
           categories: Object.fromEntries(NOTIFY_CATEGORIES.map(([key, , , opts]) => [key, {
             email: catRefs[key].email.checked,

@@ -28,7 +28,7 @@ async function setup(configOverrides = {}) {
   state = new StateStore({ dataDir: dir, debounceMs: 10 });
   state.load();
   tracker = new ZoneStateTracker({ stateStore: state });
-  engine = new EnforcementEngine({ configStore: stubConfig(configOverrides), stateStore: state, tracker, lutron: client });
+  engine = new EnforcementEngine({ configStore: stubConfig(configOverrides), stateStore: state, tracker, devices: client });
   client.on('zoneLevel', (e) => tracker.onZoneLevel(e));
   await client.connect();
   engine.setActiveCluster({ startsAt: new Date(Date.now() - 1000), endsAt: new Date(Date.now() + 3600_000) });
@@ -199,7 +199,7 @@ describe("non-Jew's override latch", () => {
     // production passes a DeviceBus (which has .flash); the test client does not,
     // so stub a flash spy to stand in for it
     const flashes = [];
-    engine.lutron.flash = (zone, times, level) => { flashes.push({ zone, times, level }); return Promise.resolve(); };
+    engine.devices.flash = (zone, times, level) => { flashes.push({ zone, times, level }); return Promise.resolve(); };
     tracker.expectCommand(9, 100);
     await client.setLevel(9, 100);
     await sleep(20);

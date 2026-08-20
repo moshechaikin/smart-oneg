@@ -5,7 +5,7 @@ import { buildSetLevel, buildQueryLevel, parseLine } from './protocol.js';
 const PROMPT_RE = /GNET>\s*$/;
 
 /**
- * GNET/LIP telnet client for the Caseta Smart Bridge Pro.
+ * GNET/LIP telnet client for the Caséta Smart Bridge Pro.
  *
  * - Serialized command queue (one in-flight command; the bridge interleaves
  *   responses otherwise).

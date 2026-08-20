@@ -507,7 +507,7 @@ function holidayMiniCalendar(clusters, startISO, endISO, heByDate = new Map(), o
   // calendar-page cluster view instead.
   for (const c of clusters) {
     for (const d of c.days) { assur.set(d.date, d.holidayLabel); dayByDate.set(d.date, d); }
-    erevInfo.set(c.erevDate, { candle: c.startsAt, shkia: c.erevSunset });
+    erevInfo.set(c.erevDate, { candle: c.startsAt, shkia: c.erevSunset, label: c.erevLabel });
     erevOwner.set(c.erevDate, c.days[0]); // the erev's rules live in the first day's editor
     havdalah.set(c.days[c.days.length - 1].date, c.endsAt);
   }
@@ -565,6 +565,9 @@ function holidayMiniCalendar(clusters, startISO, endISO, heByDate = new Map(), o
         havdalah.has(d) ? icon('kiddush', 'w-3.5 h-3.5') : (erev ? icon('candle', 'w-3.5 h-3.5') : '')),
       label && el('div', { class: 'text-[11px] leading-tight mt-0.5 font-medium break-words' }, label),
       !label && hrName && el('div', { class: 'text-[11px] leading-tight mt-0.5 font-medium break-words' }, hrName),
+      // erev days (e.g. "Erev Rosh Hashanah") get their label too, matching the
+      // full calendar page — otherwise the cell showed only a candle icon
+      !label && !hrName && erev && el('div', { class: 'text-[11px] leading-tight mt-0.5 font-medium break-words' }, erev.label ?? 'Erev'),
       chol && el('div', { class: 'text-[11px] leading-tight mt-0.5 break-words' }, 'Chol Hamoed'),
       // parsha + observances (Rosh Chodesh, fasts…) like the full calendar page —
       // hidden on phones where the cells are too small to fit them
@@ -1922,7 +1925,7 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
     const thermo = thermoMode || (!runMode && isThermo());
     // Flashing is a reminder blink, lights only. If the target changed to a
     // non-light while set to flash, fall back to a plain "turn on".
-    const canFlash = !runMode && !thermoMode && !dev?.kind;
+    const canFlash = !runMode && !thermoMode && (!dev?.kind || dev?.kind === 'outlet');
     if (rule.action.type === 'flash' && !canFlash) {
       rule.action = { type: 'setLevel', zone: rule.action.zone ?? null, ...(rule.action.zones?.length ? { zones: rule.action.zones } : {}), level: 100, fadeSec: 0 };
     }
@@ -1944,17 +1947,25 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
     // we can't know if it dims, so show the inclusive "Turn on / set brightness"
     // — it collapses to a bare "Turn on" only once a non-dimmer is actually
     // selected, and stays on the brightness wording for a dimmer.
+    // With a device chosen the verb is exact (Open / Lock / Arm / Start…). Before
+    // one is picked we can't know the family, so the on/off labels stay inclusive
+    // ("Turn on / open…") rather than misleadingly light-only.
     const onVerb = { shade: 'Open', alarm: 'Arm', bypass: 'Bypass', lock: 'Lock', vacuum: 'Start' }[plainDev?.kind]
-      ?? (!plainDev || dimmable ? 'Turn on / set brightness' : 'Turn on');
-    const offVerb = { shade: 'Close', alarm: 'Disarm', bypass: 'Restore', lock: 'Unlock', vacuum: 'Dock' }[plainDev?.kind] ?? 'Turn off';
-    const anyPlainLight = plainZones.some((z) => !z.kind);
+      ?? (!plainDev ? 'Turn on / open / lock…' : (dimmable ? 'Turn on / set brightness' : 'Turn on'));
+    const offVerb = { shade: 'Close', alarm: 'Disarm', bypass: 'Restore', lock: 'Unlock', vacuum: 'Dock' }[plainDev?.kind]
+      ?? (!plainDev ? 'Turn off / close / unlock…' : 'Turn off');
+    // Flash is a reminder blink (on/off, once or twice). That suits lights (no
+    // kind) and smart plugs (often driving a lamp), but not shades / fans /
+    // locks. Both the "Flash" option and its device picker draw from this set.
+    const flashZones = plainZones.filter((z) => !z.kind || z.kind === 'outlet');
+    const anyFlashable = flashZones.length > 0;
     // The full action set is ALWAYS offered (Turn on, Thermostat, Run automation,
     // …); the chosen action decides which devices the picker shows, so you can
     // freely switch families and are never stuck.
     const actionOptions = [
       ['on', onVerb],
       ['off', offVerb],
-      ...(anyPlainLight ? [['flash', 'Flash (reminder)']] : []),
+      ...(anyFlashable ? [['flash', 'Flash (reminder)']] : []),
       ...(thermostats.length ? [['thermostat', 'Thermostat']] : []),
       ...(scenes.length ? [['sceneStart', 'Start scene'], ['sceneEnd', 'End scene']] : []),
       ...(autos.length ? [['runAutomation', 'Run automation'], ['enableAutomation', 'Enable automation'], ['disableAutomation', 'Disable automation']] : []),
@@ -2011,7 +2022,7 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
           !uiAction() ? null : isScene()
             ? select(scenes.map((s) => [s.id, s.name ?? s.id]), rule.action.sceneId, (v) => { rule.action.sceneId = v; }, 'select !w-auto')
             : multiDeviceSelect(
-              uiAction() === 'thermostat' ? thermostats : (runMode ? autos : plainZones),
+              uiAction() === 'thermostat' ? thermostats : runMode ? autos : uiAction() === 'flash' ? flashZones : plainZones,
               selectedZones, (sel) => {
                 // keep the panel OPEN while picking several devices: only a
                 // primary-device change that alters the controls forces a redraw
@@ -2042,6 +2053,14 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
                 else updateDimNote(); // primary unchanged: just refresh the mixed-devices note in place
               },
               uiAction() === 'thermostat' ? 'Choose a thermostat…' : (runMode ? 'Choose an automation…' : 'Choose a device…')),
+          // clear the WHAT (action + device) to pick a different device family
+          // from scratch; right after the device so it never wraps below the
+          // full-width color / white-temp slider
+          uiAction() && el('button', {
+            class: 'icon-btn !w-8 !h-8 shrink-0 text-stone-400 hover:!text-rose-500',
+            title: 'Clear this action and start over',
+            onclick: () => { runMode = false; thermoMode = false; rule.action = {}; redraw(); },
+          }, icon('x', 'w-4 h-4')),
           // thermostat sub-action: hold / resume / mode / heat-cool-off
           uiAction() === 'thermostat' && select(
             [['hold', 'Hold temperature'], ['resume', 'Resume program'],
@@ -2080,7 +2099,7 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
                   onchange: (e) => { if (e.target.checked) { rule.action.rgb = rule.action.rgb ?? [245, 158, 11]; delete rule.action.kelvin; } else delete rule.action.rgb; redraw(); },
                 }),
                 rule.action.rgb != null ? el('span', { class: 'inline-flex items-center gap-1.5' }, dot, 'Color') : 'color');
-              const palette = rule.action.rgb != null ? el('div', { class: 'basis-full flex items-center gap-2 pl-1 pb-1' },
+              const palette = rule.action.rgb != null ? el('div', { class: 'basis-full flex items-center gap-2 pl-1 pt-1 pb-1' },
                 colorControl(rule.action.rgb, (rgb) => { rule.action.rgb = rgb; dot.style.background = rgbToHex(rgb); })) : null;
               return [toggle, palette];
             }
@@ -2093,7 +2112,7 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
                 }),
                 el('span', { class: 'text-amber-500 shrink-0' }, icon('sun', 'w-4 h-4')),
                 rule.action.kelvin != null ? kLabel : 'white');
-              const slider = rule.action.kelvin != null ? el('div', { class: 'basis-full flex items-center gap-2 pl-1 pb-1' },
+              const slider = rule.action.kelvin != null ? el('div', { class: 'basis-full flex items-center gap-2 pl-1 pt-1 pb-1' },
                 el('input', {
                   type: 'range', class: 'ct-slider w-40', min: 2200, max: 6500, step: 50, value: rule.action.kelvin,
                   oninput: (e) => { rule.action.kelvin = Number(e.target.value); kLabel.textContent = `${rule.action.kelvin}K`; },
@@ -2112,6 +2131,12 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
               (v) => { rule.action.times = Number(v); delete rule.action.seconds; }, 'select !w-auto'))),
         uiAction() === 'flash' && el('div', { class: 'sm:col-start-2 hint -mt-1' },
           'A quick reminder blink, e.g. flash the lights before candle lighting.'),
+        // flashing a plug toggles whatever it powers — safe for a lamp, risky
+        // for appliances/motors the app can't see, so warn when a plug is picked
+        uiAction() === 'flash' && selectedZones().some((id) => zones.find((z) => z.id === id)?.kind === 'outlet')
+          && el('div', { class: 'sm:col-start-2 -mt-1 text-[13px] text-amber-600 dark:text-amber-400 flex items-start gap-1.5' },
+            icon('alert', 'w-4 h-4 shrink-0 mt-0.5'),
+            el('span', {}, 'Only flash a plug that runs a lamp or light. Toggling other appliances (heaters, motors, electronics) on and off can be harmful.')),
         dimNote),
 
       el('div', { class: 'grid sm:grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-center' },

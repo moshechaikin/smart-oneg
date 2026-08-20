@@ -125,7 +125,7 @@ function draw(container, state, refresh) {
 
     state.zones.length === 0 && el('div', { class: 'card' },
       el('div', { class: 'section-title' }, icon('bulb'), 'No devices yet'),
-      el('p', { class: 'hint mb-4' }, 'Add your Lutron bridge devices, Hubitat devices, or a manual device to get started.'),
+      el('p', { class: 'hint mb-4' }, 'Add devices from Home Assistant, Lutron, Hubitat, Homebridge, Matter, EnvisaLink, or Ecobee, or add a manual device to get started.'),
       el('button', { class: 'btn', onclick: () => addDeviceChooser(state.settings, refresh) }, icon('plus', 'w-5 h-5'), 'Add devices')),
 
     // Compact rows grouped by room, in one vertical list in the saved room
@@ -267,14 +267,21 @@ function deviceRow(z, state, refresh, { animate = false } = {}) {
           on ? `${Math.round(level)}%` : (isShade ? 'Closed' : 'Off'));
         return el('div', { class: 'flex items-center gap-2 min-w-0 basis-full sm:basis-0 sm:grow sm:max-w-[11rem]' },
           el('input', {
+            // an OFF dimmer sits at 0, not 100 — otherwise the slider starts
+            // full, so "drag and release at 100%" is a no-op change (the browser
+            // fires `change` only when the release value differs from where the
+            // drag began) and the light never turns on.
             class: 'dim-slider w-full min-w-0', type: 'range', min: 0, max: 100,
-            value: on ? level : 100,
-            style: `--dim:${on ? Math.round(level) : 100}%`,
+            value: on ? level : 0,
+            style: `--dim:${on ? Math.round(level) : 0}%`,
             // live-update the fill AND the % readout while dragging; onchange
             // (release) sends the final value to the device
             oninput: (e) => {
-              e.target.style.setProperty('--dim', `${e.target.value}%`);
-              readout.textContent = `${e.target.value}%`;
+              const v = Number(e.target.value);
+              e.target.style.setProperty('--dim', `${v}%`);
+              // at zero the readout matches its resting wording (a shade is
+              // "Closed", a light "Off") instead of a bare "0%"
+              readout.textContent = v === 0 ? (isShade ? 'Closed' : 'Off') : `${v}%`;
             },
             onchange: (e) => doCommand(Number(e.target.value)),
           }),
@@ -333,12 +340,24 @@ function deviceRow(z, state, refresh, { animate = false } = {}) {
           toast(`Running ${name}…`);
           doCommand(100);
           // automations don't hold a state, so pulse the row like it lit up and
-          // let it settle back (accent flash + icon pop)
+          // let it settle back (accent flash + icon pop). Because the icon box
+          // never changes to the "on" accent color on its own (no lasting
+          // state), a bare scale pop on the faint gray icon is nearly invisible
+          // — so we also momentarily swap it to the same accent colors a light
+          // gets when it turns on, then transition back, so the pop reads.
           const row = e.currentTarget.closest('[data-zone]');
+          const iconBox = row?.firstElementChild;
           if (row) {
+            const onCls = ['bg-accent-200/80', 'text-accent-700', 'dark:bg-accent-500/25', 'dark:text-accent-300'];
+            const offCls = ['bg-stone-100', 'text-stone-400', 'dark:bg-stone-800', 'dark:text-stone-500'];
             row.classList.add('run-pulse');
-            row.firstElementChild?.classList.add('device-pop');
-            setTimeout(() => { row.classList.remove('run-pulse'); row.firstElementChild?.classList.remove('device-pop'); }, 700);
+            if (iconBox) {
+              iconBox.classList.add('device-pop');
+              iconBox.classList.remove(...offCls);
+              iconBox.classList.add(...onCls);
+              setTimeout(() => { iconBox.classList.remove(...onCls); iconBox.classList.add(...offCls); }, 550);
+            }
+            setTimeout(() => { row.classList.remove('run-pulse'); iconBox?.classList.remove('device-pop'); }, 700);
           }
         },
       }, icon('play', 'w-4 h-4'), 'Run')
@@ -516,7 +535,7 @@ function editDevice(z, refresh, settings, allZones = []) {
     title: 'Edit device',
     // sticky footer so Save/Cancel stay pinned even when the content is tall
     // (a Lutron light with the room hint + the Child Lock note can overflow)
-    stickyFooter: true,
+    stickyFooter: true, saveOnCtrlS: true,
     body: el('div', { class: 'space-y-4' },
       field('Name', name),
       field('Room', roomField, isLutron
@@ -576,6 +595,7 @@ function editDevice(z, refresh, settings, allZones = []) {
         dimmable, enforce: enforce.input.checked,
         kind, displayUnit: kind === 'thermostat' ? unitSel.value : null,
       });
+      toast('Device saved', 'success');
       refresh();
     },
   });
@@ -641,20 +661,20 @@ function openDevicesReorder(area, list, refresh) {
 /** "+ Add devices": choose an ecosystem, then its specific flow. */
 export function addDeviceChooser(settings, refresh) {
   const options = [
-    // the four bridges/hubs share one icon (a hub box) for visual consistency;
-    // Matter/Ecobee/Manual below keep distinct icons, they're device types, not hubs
-    { key: 'lutron', icon: 'server', title: 'Lutron Caseta bridge',
-      desc: settings.lutron.enabled !== false ? 'Import or refresh the integration report' : 'Currently disabled in Settings' },
-    { key: 'hubitat', icon: 'server', title: 'Hubitat hub',
-      desc: settings.hubitat?.enabled ? 'Import Zigbee / Z-Wave / Ecobee devices from Maker API' : 'Enable it in Settings first' },
-    { key: 'homeassistant', icon: 'server', title: 'Home Assistant',
+    // order mirrors the setup wizard. Home Assistant + Hubitat show their brand
+    // logos (img); the rest use line icons.
+    { key: 'homeassistant', img: '/icons/home-assistant-icon.png', title: 'Home Assistant',
       desc: settings.homeassistant?.enabled ? 'Import lights, switches and thermostats (push state, full Child Lock)' : 'Enable it in Settings first' },
-    { key: 'homebridge', icon: 'server', title: 'Homebridge',
+    { key: 'lutron', img: '/icons/lutron-icon.png', title: 'Lutron Caséta bridge',
+      desc: settings.lutron.enabled !== false ? 'Import or refresh the integration report' : 'Currently disabled in Settings' },
+    { key: 'hubitat', img: '/icons/hubitat-icon.png', title: 'Hubitat hub',
+      desc: settings.hubitat?.enabled ? 'Import Zigbee / Z-Wave / Ecobee devices from Maker API' : 'Enable it in Settings first' },
+    { key: 'homebridge', img: '/icons/homebridge-icon.png', title: 'Homebridge',
       desc: settings.homebridge?.enabled ? 'Import accessories via config-ui-x (polled, Child Lock lags a few seconds)' : 'Enable it in Settings first' },
-    { key: 'matter', icon: 'bulb', title: 'Matter device (experimental)',
+    { key: 'matter', img: '/icons/matter-icon.png', title: 'Matter device (experimental)',
       desc: settings.matter?.enabled ? 'Pair a Matter device with its code, then import it' : 'Enable it in Settings first' },
-    { key: 'ecobee', icon: 'thermometer', title: 'Ecobee thermostat (cloud)',
-      desc: 'Native cloud API. Recommended instead: pair it to a Hubitat (local is more reliable on Shabbos)' },
+    { key: 'ecobee', img: '/icons/ecobee-icon.png', title: 'Ecobee thermostat (cloud)',
+      desc: 'Native cloud API. Recommended instead: pair to Hubitat/Home Assistant (local is more reliable on Shabbos)' },
     { key: 'manual', icon: 'plus', title: 'Manual device', desc: 'A virtual device (plan schedules without hardware)' },
   ];
   const m = modal({
@@ -664,7 +684,8 @@ export function addDeviceChooser(settings, refresh) {
         class: 'w-full text-left card !p-3 hover:border-accent-400 dark:hover:border-accent-500 transition-colors flex items-center gap-3.5',
         onclick: () => { m.close(); ({ lutron: lutronFlow, hubitat: hubitatFlow, homeassistant: homeAssistantFlow, homebridge: homebridgeFlow, matter: matterFlow, ecobee: ecobeeFlow, manual: manualFlow })[o.key](settings, refresh); },
       },
-        el('span', { class: 'text-accent-600 dark:text-accent-400 shrink-0' }, icon(o.icon, 'w-6 h-6')),
+        el('span', { class: 'text-accent-600 dark:text-accent-400 shrink-0' },
+          o.img ? el('img', { src: o.img, alt: '', class: `w-6 h-6 object-contain ${o.key === 'homebridge' ? 'scale-[1.15]' : ''}` }) : icon(o.icon, 'w-6 h-6')),
         el('div', { class: 'min-w-0' },
           el('div', { class: 'font-semibold text-[15px]' }, o.title),
           el('div', { class: 'hint' }, o.desc))))),
@@ -794,6 +815,7 @@ function importRow(device, line, rooms, defaultArea, onToggle, existing) {
     room);
   return {
     node,
+    existing: Boolean(existing),
     checked: () => check.checked,
     set: (v) => { check.checked = v; room.disabled = existing ? true : !v; },
     get: () => (check.checked ? { id: device.id, area: existing ? existing.area : (room.value.trim() || undefined) } : null),
@@ -823,21 +845,42 @@ async function providerImportFlow({ enabled, name, apiBase, note, deviceLine, so
     const importedById = new Map(zones.filter((z) => z.source === src).map((z) => [String(z.externalId), z]));
     const devices = sortDevices ? sortDevices([...found]) : found;
     const selectAll = el('input', { class: 'checkbox shrink-0', type: 'checkbox' });
-    // keep the header box in sync: all → checked, some → indeterminate, none → off
+    const newOnly = el('input', { class: 'checkbox shrink-0', type: 'checkbox' });
+    const countSpan = el('span', {});
+    const visibleRows = () => rows.filter((r) => !(newOnly.checked && r.existing));
+    // keep the header box in sync with the VISIBLE rows: all → checked, some →
+    // indeterminate, none → off; the count reflects what's currently shown
     const syncSelectAll = () => {
-      const n = rows.filter((r) => r.checked()).length;
-      selectAll.checked = n === rows.length;
-      selectAll.indeterminate = n > 0 && n < rows.length;
+      const vis = visibleRows();
+      const n = vis.filter((r) => r.checked()).length;
+      selectAll.checked = vis.length > 0 && n === vis.length;
+      selectAll.indeterminate = n > 0 && n < vis.length;
+      countSpan.textContent = `Select all (${vis.length})`;
     };
     const rows = devices.map((d) => importRow(d, deviceLine(d), rooms, d.kind === 'automation' ? 'Automations' : name, syncSelectAll, importedById.get(String(d.id))));
-    selectAll.addEventListener('change', () => { rows.forEach((r) => r.set(selectAll.checked)); syncSelectAll(); });
+    const anyAdded = rows.some((r) => r.existing);
+    // "New only" hides (and unchecks) already-imported devices, so a long list is
+    // just the handful you haven't added yet — no wading past dozens of "Added"
+    // rows, and no accidental mass re-import.
+    const applyFilter = () => {
+      rows.forEach((r) => {
+        const hide = newOnly.checked && r.existing;
+        r.node.classList.toggle('hidden', hide);
+        if (hide) r.set(false);
+      });
+      syncSelectAll();
+    };
+    selectAll.addEventListener('change', () => { visibleRows().forEach((r) => r.set(selectAll.checked)); syncSelectAll(); });
+    newOnly.addEventListener('change', applyFilter);
+    syncSelectAll();
     modal({
       title: `Import ${name} devices`,
       stickyFooter: true,
       body: el('div', {},
         el('p', { class: 'hint -mt-2 mb-3' }, note ? `${note} ` : '', 'Pick a Room to file each device with your existing rooms, or leave the default to group them under “', name, '”. Devices already imported are marked “Added” — check one to re-import and refresh its capabilities (your room, name and Child Lock settings are kept).'),
-        el('label', { class: 'flex items-center gap-3 py-1.5 mb-1 border-b border-stone-200 dark:border-stone-800 font-medium text-[15px]' },
-          selectAll, el('span', {}, `Select all (${rows.length})`)),
+        el('div', { class: 'flex items-center gap-3 py-1.5 mb-1 border-b border-stone-200 dark:border-stone-800 font-medium text-[15px]' },
+          el('label', { class: 'flex items-center gap-3 cursor-pointer' }, selectAll, countSpan),
+          anyAdded && el('label', { class: 'ml-auto flex items-center gap-2 text-[13px] font-normal text-stone-500 dark:text-stone-400 cursor-pointer' }, newOnly, 'New only')),
         el('div', { class: 'space-y-0.5' }, rows.map((r) => r.node))),
       confirmText: 'Add selected',
       onConfirm: async () => {

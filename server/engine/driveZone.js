@@ -14,13 +14,13 @@
  * never retry-storm a struggling bridge. Throws on failure either way — each
  * caller owns its error handling (log, notify, or swallow).
  *
- * `deps` is any object carrying { lutron, tracker } — Scheduler and
+ * `deps` is any object carrying { devices, tracker } — Scheduler and
  * EnforcementEngine both do, so call as driveZone(this, ...).
  */
-export async function driveZone({ lutron, tracker }, zone, rawLevel, { verified = true, fadeSec = 0, attempts } = {}) {
-  const level = lutron.coerceLevel?.(zone, rawLevel) ?? rawLevel;
+export async function driveZone({ devices, tracker }, zone, rawLevel, { verified = true, fadeSec = 0, attempts } = {}) {
+  const level = devices.coerceLevel?.(zone, rawLevel) ?? rawLevel;
   tracker.expectCommand(zone, level);
-  if (verified && lutron.setLevelVerified) await lutron.setLevelVerified(zone, level, fadeSec, attempts ? { attempts } : undefined);
-  else await lutron.setLevel(zone, level, fadeSec);
+  if (verified && devices.setLevelVerified) await devices.setLevelVerified(zone, level, fadeSec, attempts ? { attempts } : undefined);
+  else await devices.setLevel(zone, level, fadeSec);
   return level;
 }

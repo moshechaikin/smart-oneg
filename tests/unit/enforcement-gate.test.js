@@ -16,7 +16,7 @@ function makeEnforcement(canAct) {
   tracker.expected = () => 100; tracker.reported = () => 0; tracker.expectCommand = () => {};
   const driven = [];
   const lutron = { setLevel: async () => { driven.push(1); }, setLevelVerified: async () => { driven.push(1); } };
-  const eng = new EnforcementEngine({ configStore: { get: () => cfg }, stateStore, tracker, lutron, canAct });
+  const eng = new EnforcementEngine({ configStore: { get: () => cfg }, stateStore, tracker, devices: lutron, canAct });
   const events = [];
   eng.on('latched', (e) => events.push({ type: 'latched', ...e }));
   eng.on('corrected', (e) => events.push({ type: 'corrected', ...e }));

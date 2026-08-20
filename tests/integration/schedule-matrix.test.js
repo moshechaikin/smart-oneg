@@ -93,12 +93,12 @@ async function boot() {
   bus.register('lutron', client);
   const tracker = new ZoneStateTracker({ stateStore });
   bus.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: bus });
-  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: bus });
+  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: bus });
+  scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: bus });
   enforcement.setClock(() => scheduler.now());
   app = createApp({
     configStore, stateStore, scheduler, tracker, enforcement,
-    lutron: bus, failover: null, notifier: { send: async () => ({}) },
+    devices: bus, failover: null, notifier: { send: async () => ({}) },
     ring: new LogRing(), logDir: null, logger: null,
   });
   await bus.connect();

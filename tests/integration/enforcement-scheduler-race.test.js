@@ -48,13 +48,13 @@ describe('a slow Child Lock correction cannot clobber a concurrently-fired actio
     const fakeLutron = { connected: true, coerceLevel: (_i, l) => l, async setLevelVerified() {} };
 
     // no zoneLock passed anywhere — the exact wiring mistake the adoption prevents
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: fakeLutron });
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: fakeLutron });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: fakeLutron });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: fakeLutron });
     expect(scheduler.zoneLock).toBe(enforcement.zoneLock); // one shared instance
 
     // an explicit lock still wins (tests that stage races inject their own)
     const explicit = new ZoneLock();
-    const scheduler2 = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: fakeLutron, zoneLock: explicit });
+    const scheduler2 = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: fakeLutron, zoneLock: explicit });
     expect(scheduler2.zoneLock).toBe(explicit);
     scheduler.stop();
     scheduler2.stop();
@@ -95,8 +95,8 @@ describe('a slow Child Lock correction cannot clobber a concurrently-fired actio
     };
 
     const zoneLock = new ZoneLock(); // shared, exactly as index.js wires it
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: fakeLutron, zoneLock });
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: fakeLutron, zoneLock });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: fakeLutron, zoneLock });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: fakeLutron, zoneLock });
     scheduler.compiled = { actions: [], allActions: [], report: null, conflicts: [], clusters: [] };
 
     // Zone 8 is scheduled ON (100); a real Shabbos cluster is active right now.
@@ -164,7 +164,7 @@ describe('a slow Child Lock correction cannot clobber a concurrently-fired actio
     };
     const zoneLock = new ZoneLock();
     // (the EnforcementEngine constructor subscribes to tracker 'deviation' itself)
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: fakeLutron, zoneLock });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: fakeLutron, zoneLock });
 
     tracker.setExpected(8, 100); // schedule wants the zone ON
     enforcement.setActiveCluster({ id: 'c1', startsAt: new Date(Date.now() - 3600_000), endsAt: new Date(Date.now() + 3600_000) });

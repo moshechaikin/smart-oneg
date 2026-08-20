@@ -32,7 +32,7 @@ test('setup wizard end-to-end (ecosystem-first flow)', async ({ page }) => {
 
   // step 3: ecosystem picker -> Lutron setup
   await expect(page.getByRole('heading', { name: 'What runs your lights?' })).toBeVisible();
-  await page.getByRole('button', { name: /Lutron Caseta bridge/ }).click();
+  await page.getByRole('button', { name: /Lutron Caséta bridge/ }).click();
   await expect(page.getByText('Telnet Support')).toBeVisible();
   await expect(page.getByText('Send Integration Report')).toBeVisible();
   const report = fs.readFileSync(new URL('../../lutron-integration-report.json', import.meta.url), 'utf8');

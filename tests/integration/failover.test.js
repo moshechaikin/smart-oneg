@@ -37,13 +37,13 @@ async function makeInstance({ role, bridge, primaryUrl = '', pollSeconds = 0.05 
   const lutron = new LutronClient({ host: '127.0.0.1', port: bridge.port, zoneIds: [3], commandTimeoutMs: 500 });
   const tracker = new ZoneStateTracker({ stateStore });
   lutron.on('zoneLevel', (e) => tracker.onZoneLevel(e));
-  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron });
-  const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron });
+  const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: lutron });
+  const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: lutron });
   const notifications = [];
   const notifier = { send: async (event, p) => { notifications.push({ event, p }); return {}; } };
-  const failover = new FailoverManager({ configStore, stateStore, scheduler, lutron, notifier });
+  const failover = new FailoverManager({ configStore, stateStore, scheduler, devices: lutron, notifier });
   const app = createApp({
-    configStore, stateStore, scheduler, tracker, enforcement, lutron, failover, notifier,
+    configStore, stateStore, scheduler, tracker, enforcement, devices: lutron, failover, notifier,
     ring: new LogRing(), logDir: null, logger: null,
   });
   const server = await new Promise((resolve) => {

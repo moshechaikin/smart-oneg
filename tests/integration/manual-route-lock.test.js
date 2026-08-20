@@ -48,7 +48,7 @@ function build() {
 
   const app = express();
   app.use(express.json());
-  app.use('/api', lightingRouter({ configStore, stateStore, scheduler, tracker, enforcement: {}, lutron, logger: null }));
+  app.use('/api', lightingRouter({ configStore, stateStore, scheduler, tracker, enforcement: {}, devices: lutron, logger: null }));
   return { app, zoneLock, order, tracker };
 }
 

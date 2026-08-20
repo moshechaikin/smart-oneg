@@ -56,8 +56,8 @@ describe('a slow reconcile() cannot clobber a concurrently-fired action on the s
         order.push({ id, level });
       },
     };
-    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, lutron: fakeLutron });
-    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, lutron: fakeLutron });
+    const enforcement = new EnforcementEngine({ configStore, stateStore, tracker, devices: fakeLutron });
+    const scheduler = new Scheduler({ configStore, stateStore, tracker, enforcement, devices: fakeLutron });
     // Stale timeline: reconcile will compute level 0 for zone 8 for as long as
     // this stands, regardless of how much real time passes mid-test.
     scheduler.compiled = {

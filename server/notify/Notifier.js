@@ -145,9 +145,13 @@ const EVENT_CATEGORY = {
 
 export function buildMessage(event, p) {
   switch (event) {
-    case 'takeover':
+    case 'takeover': {
+      // instance.name is optional (and has no UI to set it yet), so only quote
+      // it when present — otherwise the body reads `The backup instance ""`.
+      const who = p.name ? `The backup instance "${p.name}"` : 'The backup instance';
       return { title: '⚠️ Backup instance has taken over', priority: 'high', tags: 'warning', accent: RED,
-        body: `The backup instance "${p.name ?? ''}" could not reach the primary and is now controlling the lights.` };
+        body: `${who} could not reach the primary and is now controlling the lights.` };
+    }
     case 'release':
       return { title: 'Backup instance released control', tags: 'white_check_mark', accent: GREEN,
         body: 'The primary instance is healthy again; the backup returned to standby.' };

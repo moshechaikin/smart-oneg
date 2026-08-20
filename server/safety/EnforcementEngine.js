@@ -41,7 +41,7 @@ export class EnforcementEngine extends EventEmitter {
   #enforceFromMs = null;      // early-Shabbos boundary (defaults to cluster start)
 
   constructor({
-    configStore, stateStore, tracker, lutron, logger = null, now = () => Date.now(), canAct = () => true, isTestMode = () => false,
+    configStore, stateStore, tracker, devices, logger = null, now = () => Date.now(), canAct = () => true, isTestMode = () => false,
     // The per-zone write lock (see ZoneLock.js) — corrections here must never
     // race a concurrent reconcile/catch-up/fired-action write to the SAME
     // zone, or whichever wrote last would win even if stale. This instance is
@@ -55,7 +55,7 @@ export class EnforcementEngine extends EventEmitter {
     this.config = configStore;
     this.state = stateStore;
     this.tracker = tracker;
-    this.lutron = lutron;
+    this.devices = devices;
     this.log = logger;
     this.now = now;
     this.zoneLock = zoneLock;
@@ -231,7 +231,7 @@ export class EnforcementEngine extends EventEmitter {
   }
 
   async #signalLatch(zone, level) {
-    if (typeof this.lutron.flash !== 'function') return;
+    if (typeof this.devices.flash !== 'function') return;
     try {
       // Serialized on the shared ZoneLock like every other zone write. Without
       // it, a lock-held write that passed its isLatched check just before the
@@ -248,7 +248,7 @@ export class EnforcementEngine extends EventEmitter {
         // expectedLevel. Registered inside the lock turn so the 5s echo
         // window starts when the writes actually begin, not while queued.
         for (const l of blinkLevels(level, 2)) (this.tracker.expectEcho ?? this.tracker.expectCommand)?.call(this.tracker, zone, l);
-        await this.lutron.flash(zone, 2, level);
+        await this.devices.flash(zone, 2, level);
       });
     } catch (err) {
       this.log?.warn({ zone, err: err.message }, 'enforcement: latch-confirm blink failed');

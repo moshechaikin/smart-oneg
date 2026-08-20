@@ -89,7 +89,7 @@ function stripPlaceholders(partial) {
 
 
 /** Health: standby polling + docker healthcheck. Unauthenticated, never secret-bearing. */
-export function healthHandler({ configStore, stateStore, lutron, failover, scheduler, versionChecker }) {
+export function healthHandler({ configStore, stateStore, devices, failover, scheduler, versionChecker }) {
   return (req, res) => {
     const cfg = configStore.get();
     // a health poll bearing our sync token is the backup checking in — record it
@@ -97,7 +97,13 @@ export function healthHandler({ configStore, stateStore, lutron, failover, sched
     const authHeader = req.headers?.authorization ?? '';
     const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     const tokenOk = Boolean(bearer && cfg.failover.syncToken && safeEqual(bearer, cfg.failover.syncToken));
-    if (cfg.instance.role === 'primary' && failover?.noteBackupContact && tokenOk) failover.noteBackupContact();
+    if (cfg.instance.role === 'primary' && failover?.noteBackupContact && tokenOk) {
+      // key by the backup's instance id so two standbys can be told apart (and
+      // the "multiple backups detected" guard can fire); fall back to source IP
+      // for an older backup that doesn't send the header
+      const backupId = req.headers?.['x-smartoneg-instance'] || req.ip || 'unknown';
+      failover.noteBackupContact(backupId);
+    }
 
     // The endpoint is unauthenticated (docker healthcheck, login-page banner,
     // standby poll) — but the FULL payload is only for authenticated callers
@@ -132,10 +138,15 @@ export function healthHandler({ configStore, stateStore, lutron, failover, sched
       name: cfg.instance.name,
       configVersion: cfg.configVersion,
       setupComplete: cfg.setupComplete,
-      lutronConnected: lutron.connected,
+      // true only when EVERY bridge that owns a zone is connected (not just
+      // Lutron) — see DeviceBus.connected. `lutronConnected` is kept as a
+      // backward-compat alias for older standby instances and external
+      // consumers (e.g. Home Assistant templates) that predate the rename.
+      devicesConnected: devices.connected,
+      lutronConnected: devices.connected,
       // per-bridge connection breakdown (Lutron, Home Assistant, EnvisaLink…)
       // for the dashboard's bridge chip + details modal
-      bridges: lutron.bridgeStatus?.() ?? [],
+      bridges: devices.bridgeStatus?.() ?? [],
       failoverActive: failover?.active ?? false,
       // presence-simulation (away) mode — powers the top banner on every page
       away: (() => {
@@ -203,7 +214,7 @@ export function onegHandler({ scheduler }) {
   };
 }
 
-export function systemRouter({ configStore, stateStore, scheduler, lutron, failover, versionChecker, notifier, ring, logDir, logger, dataDir }) {
+export function systemRouter({ configStore, stateStore, scheduler, devices, failover, versionChecker, notifier, ring, logDir, logger, dataDir }) {
   const router = Router();
 
   // Software version + update availability (best-effort; offline-safe).
@@ -279,7 +290,7 @@ export function systemRouter({ configStore, stateStore, scheduler, lutron, failo
 
   router.post('/settings/lutron/test', async (req, res) => {
     const { LutronClient } = await import('../lutron/LutronClient.js');
-    const { host, port, username, password } = deepMerge(configStore.get().lutron, stripPlaceholders(req.body ?? {}));
+    const { host, port, username, password } = deepMerge(configStore.get().devices, stripPlaceholders(req.body ?? {}));
     const zoneIds = configStore.get().zones.map((z) => z.id);
     const probe = new LutronClient({ host, port, username, password, zoneIds: zoneIds.slice(0, 3), commandTimeoutMs: 3000 });
     try {
