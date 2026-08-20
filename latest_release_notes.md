@@ -1,4 +1,4 @@
-## SmartOneg v1.0.2
+## SmartOneg v1.0.3
 
 ### Reliability
 - **Failover now covers a stuck bridge.** If the primary is running but can no longer reach its hub, the standby takes over, instead of waiting for the primary to go fully offline.
