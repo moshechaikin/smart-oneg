@@ -94,7 +94,35 @@ jobs:
         run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+      # The app's font stack starts with system-ui / ui-sans-serif, which on
+      # macOS is San Francisco but on the Linux runner falls back to DejaVu Sans
+      # (wider + heavier) — that skews the hero and wraps lines. Install Inter and
+      # steer the default sans-serif to it (Roboto / Liberation Sans as fallbacks)
+      # so the runner renders close to macOS.
+      - name: Install UI fonts for a consistent hero render
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-inter fonts-roboto || true
+          mkdir -p "$HOME/.config/fontconfig"
+          cat > "$HOME/.config/fontconfig/fonts.conf" <<'CONF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <alias><family>sans-serif</family><prefer>
+              <family>Inter</family><family>Roboto</family><family>Liberation Sans</family>
+            </prefer></alias>
+            <match target="pattern"><test name="family"><string>system-ui</string></test>
+              <edit name="family" mode="prepend" binding="strong"><string>Inter</string></edit></match>
+            <match target="pattern"><test name="family"><string>ui-sans-serif</string></test>
+              <edit name="family" mode="prepend" binding="strong"><string>Inter</string></edit></match>
+          </fontconfig>
+          CONF
+          fc-cache -f >/dev/null 2>&1 || true
+      # TZ so zmanim render in the demo location's timezone (America/New_York),
+      # not the runner's UTC — otherwise candle lighting shows ~4 hours late.
       - name: Refresh dashboard hero screenshots
+        env:
+          TZ: America/New_York
         run: HERO_ONLY=1 node scripts/feature-shots.mjs
 
       - name: Commit and tag
