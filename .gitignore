@@ -10,3 +10,4 @@ docker-compose.override.yml
 .claude
 scripts/*
 !scripts/build-demo.sh
+!scripts/feature-shots.mjs
