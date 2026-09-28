@@ -1,8 +1,8 @@
 import { api } from '../api.js';
-import { el, clear, mount, modal, levelBadge, fmtDateTime, fmtDateRange, pollWhileMounted, pageHeader, toast, fmtState, todayISO, localISO, variantLabel, select } from '../ui.js';
+import { el, clear, mount, modal, levelBadge, fmtDateTime, fmtAwayWindow, pollWhileMounted, pageHeader, toast, fmtState, todayISO, localISO, variantLabel, select } from '../ui.js';
 import { icon } from '../icons.js';
 import { timelineView, clusterDayLabels, guestPreviewNote, awayPreviewNote } from '../components/timeline.js';
-import { groupKeyForDayType } from './schedules.js';
+import { groupKeyForDayType, dayTypeLabel } from './schedules.js';
 
 function countdown(target) {
   const ms = new Date(target) - Date.now();
@@ -61,13 +61,32 @@ async function draw(container, firstLoad) {
   const featured = active ?? next;
   const conflicts = compileRes?.conflicts ?? [];
   const report = compileRes?.report;
+  const locale = settings.display?.locale ?? 'ashkenazi';
+  const dayName = (dt) => dayTypeLabel(dt, locale);
+  // "Fri, Oct 2" — a bare 2026-10-02 in prose reads like a log line
+  const friendlyDate = (iso) => new Date(`${iso}T12:00`)
+    .toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // Warnings are for things that are actually WRONG: rules that fight each
+  // other, and days the schedule doesn't cover at all.
   const warnings = [
     ...conflicts.map((w) => ({ text: w.message, extra: w.suggestion })),
-    ...(report?.unconfiguredVariants ?? []).map((v) => ({
-      text: `${v.date}: ${v.dayType} needs its "${v.variant}" schedule, the regular one will be used.`, link: '#/schedules',
+    ...(report?.unscheduledDays ?? []).map((v) => ({
+      text: `${friendlyDate(v.date)}: ${dayName(v.dayType)} has no schedule at all.`, link: '#/schedules',
     })),
-    ...(report?.unscheduledDays ?? []).map((v) => ({ text: `${v.date} (${v.dayType}) has no schedule at all.`, link: '#/schedules' })),
   ];
+  // An unconfigured variant is NOT a problem — the day is covered, it just
+  // falls back to the regular rules, which is usually what you want. It lives
+  // in its own neutral card (and is flagged again in the rule editor/timeline,
+  // where you'd actually act on it).
+  // Parenthetical, not a sentence: variantLabel yields both predicates
+  // ("falls on Shabbos") and proper names ("Shabbos Chanukah"), so
+  // "<day> <variant> this year" would read "Shabbos Shabbos Chanukah".
+  const notices = (report?.unconfiguredVariants ?? []).map((v) => ({
+    text: `${friendlyDate(v.date)}: ${dayName(v.dayType)} (${variantLabel(v.variant)}).`,
+    extra: `No schedule of its own, so your regular ${dayName(v.dayType)} rules will be used.`,
+    link: '#/schedules',
+  }));
 
   // Bridge status chip: prefer the server's per-bridge breakdown
   // (health.bridges); fall back to a zone/settings-derived list at the
@@ -142,7 +161,7 @@ async function draw(container, firstLoad) {
       try {
         await api.post('/api/away-mode', { enabled: true, from, to, label });
         document.getElementById('modal-root').replaceChildren();
-        toast(`Away mode set${label ? `, ${label}` : ''}. Your lights will simulate presence during that Shabbos/Yom Tov.`, 'warn', { ms: 9000 });
+        toast(`Away mode set${label ? `, ${label}` : ''}. Your lights will simulate presence during ${to ? 'that' : 'every'} Shabbos/Yom Tov${to ? '' : ', until you turn it off'}.`, 'warn', { ms: 9000 });
         window.dispatchEvent(new CustomEvent('smartoneg:optimistic-banner', { detail: { away: { active: from <= new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10), scheduled: from > new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10), label: label ?? null, from, to } } }));
         redrawModes();
       } catch (err) { toast(err.message, 'error'); }
@@ -156,7 +175,18 @@ async function draw(container, firstLoad) {
           el('div', { class: 'flex flex-wrap gap-2' },
             shabbosos.map((p) => el('button', { class: 'btn-secondary btn-sm', onclick: () => enable(p.from, p.to, p.label) }, p.label)))) : null,
         festivals.length ? el('div', {}, el('div', { class: 'label' }, 'Or a Yom Tov (this year)'), yt) : null,
+        // Open-ended: a vacation home, where there's no known return date.
+        // Nothing expires it — only turning away mode off ends it.
         el('div', {},
+          el('div', { class: 'label' }, 'Or with no end date'),
+          el('button', {
+            class: 'btn-secondary btn-sm', onclick: () => enable(todayISO(), null, null),
+          }, icon('plane', 'w-4 h-4'), 'Until I turn it off'),
+          el('div', { class: 'hint mt-1.5' }, 'For a vacation home: presence simulation runs every Shabbos and Yom Tov from today on, until you turn it off.')),
+        // Own bordered card: every other option here acts on a single click and
+        // closes the modal, so this one — pick two dates, THEN press Turn on —
+        // needs to read as a separate little form, not a third row of choices.
+        el('div', { class: 'card !p-4' },
           el('div', { class: 'label' }, 'Or a custom date range'),
           el('div', { class: 'flex items-center gap-2 flex-wrap' },
             cFrom, el('span', { class: 'text-stone-400' }, '→'), cTo,
@@ -243,9 +273,9 @@ async function draw(container, firstLoad) {
         }, icon('calendar', 'w-4 h-4 shrink-0'),
           // preset labels already embed the date (e.g. "Shabbos · Oct 10"); only
           // fall back to the raw range for a custom window, so it never doubles up
-          settings.awayMode.label || fmtDateRange(settings.awayMode.from, settings.awayMode.to)),
+          settings.awayMode.label || fmtAwayWindow(settings.awayMode.from, settings.awayMode.to)),
         el('div', { class: 'hint flex-1' }, awayActive
-          ? 'Simulating presence, evenings kept lit longer, brief during the day. Turns off automatically after the window.'
+          ? `Simulating presence, evenings kept lit longer, brief during the day. ${settings.awayMode?.to ? 'Turns off automatically after the window.' : 'Runs until you turn it off.'}`
           : awayScheduled
             ? 'Scheduled, it kicks in automatically as the window nears.'
             : 'Away for Shabbos/Yom Tov? Make your lights look lived-in (a randomized version of your own schedule).'),
@@ -292,7 +322,7 @@ async function draw(container, firstLoad) {
       guestOn && upcomingTimeline.actions.some((a) => a.source?.guest) && guestPreviewNote(),
       timelineView(upcomingTimeline.actions, { zones, scenes, dayLabels: clusterDayLabels(featured), stickyHeaders: 'sticky-below-header z-10' })),
 
-    // warnings
+    // warnings — things that are actually wrong and want fixing
     warnings.length > 0 && el('div', { id: 'schedule-warnings', class: 'card border-accent-300 dark:border-accent-600/50 scroll-mt-24' },
       el('div', { class: 'section-title text-accent-700 dark:text-accent-400 !mb-3' }, icon('alert'), 'Schedule warnings'),
       el('ul', { class: 'space-y-2 text-[15px]' },
@@ -301,6 +331,18 @@ async function draw(container, firstLoad) {
           el('span', {}, w.text, ' ',
             w.extra && el('span', { class: 'text-stone-500' }, w.extra),
             w.link && el('a', { href: w.link, class: 'text-accent-600 dark:text-accent-400 underline ml-1' }, 'Fix')))))),
+
+    // notices — nothing is wrong, the day just falls back to the regular
+    // rules. Neutral styling (no alert icon, no accent border) so it reads as
+    // information, not a problem to chase.
+    notices.length > 0 && el('div', { id: 'schedule-notices', class: 'card scroll-mt-24' },
+      el('div', { class: 'section-title text-stone-500 dark:text-stone-400 !mb-3' }, icon('info'), 'Good to know'),
+      el('ul', { class: 'space-y-2 text-[15px]' },
+        notices.map((n) => el('li', { class: 'flex gap-2' },
+          el('span', { class: 'text-stone-400 mt-0.5' }, '•'),
+          el('span', {}, n.text, ' ',
+            n.extra && el('span', { class: 'text-stone-500 dark:text-stone-400' }, n.extra),
+            n.link && el('a', { href: n.link, class: 'text-accent-600 dark:text-accent-400 underline ml-1' }, 'Customize')))))),
   );
 }
 

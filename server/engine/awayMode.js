@@ -49,7 +49,9 @@ const DAY_CAP_MIN = [45, 120];       // daytime lit periods capped to this many 
  *           sunsetMs: (dateISO: string) => number|null }} opts
  */
 export function applyAwayMode(actions, { awayMode, zones = [], tzid = 'UTC', clusters = [], sunsetMs = null } = {}) {
-  if (!awayMode?.enabled || !awayMode.from || !awayMode.to) return actions;
+  // `to: null` is an OPEN-ENDED window (a vacation home — "away until I turn
+  // it off"). `from` is still required: it says when the simulation starts.
+  if (!awayMode?.enabled || !awayMode.from) return actions;
   const cfg = { ...DEFAULTS, ...awayMode };
   const seed = cfg.seed || 'away';
   const jitterMs = Math.max(0, cfg.jitterMin) * 60_000;
@@ -60,8 +62,11 @@ export function applyAwayMode(actions, { awayMode, zones = [], tzid = 'UTC', clu
   // assur windows (candle lighting → havdalah) of clusters overlapping [from,to].
   // Keying off these means erev prep, post-havdalah, and Chol Hamoed (never in a
   // cluster) are left untouched — away mode matches Child Lock's active period.
+  // An open-ended window (cfg.to == null) has no upper bound — every cluster
+  // from `from` onward counts.
   const intervals = clusters
-    .filter((c) => localDate(c.endsAt.getTime()) >= cfg.from && localDate(c.startsAt.getTime()) <= cfg.to)
+    .filter((c) => localDate(c.endsAt.getTime()) >= cfg.from
+      && (!cfg.to || localDate(c.startsAt.getTime()) <= cfg.to))
     .map((c) => [c.startsAt.getTime(), c.endsAt.getTime()]);
   const inAssur = (ms) => intervals.some(([s, e]) => ms >= s && ms <= e);
   const qFrom = toMinutes(cfg.quietFrom);

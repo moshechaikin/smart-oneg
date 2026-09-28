@@ -266,7 +266,10 @@ describe('schedule matrix: API round-trip + full-year compile', () => {
     const failed = [];
     scheduler.on('actionFailed', (f) => failed.push(f));
     await scheduler.setTestMode(target);
-    await sleep(4500); // let the burst fire (flash takes ~1.4s itself)
+    // Let the burst fire and fully settle. The scene flashes zone 5, an ON
+    // Lutron dimmer, which holds its dark step ~2.2s (the dimmer ramps — see
+    // DeviceBus), so sampling too early catches that zone mid-blink at 0.
+    await sleep(7000);
 
     expect(failed.map((f) => `${f.action?.source?.ruleId} z${f.action?.zone}: ${f.error?.message}`)).toEqual([]);
     // every multi-zone target hit 75 unless the scene overrode it (b2 fires at

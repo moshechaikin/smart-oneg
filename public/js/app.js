@@ -1,5 +1,5 @@
 import { api, onUnauthorized } from './api.js';
-import { el, clear, mount, modal, toast, testModeSteps, navGuard, fmtDateRange } from './ui.js';
+import { el, clear, mount, modal, toast, testModeSteps, navGuard, fmtAwayWindow } from './ui.js';
 import { icon } from './icons.js';
 import { dashboardPage } from './pages/dashboard.js';
 import { calendarPage } from './pages/calendar.js';
@@ -223,7 +223,7 @@ function awayBanner() {
   // (e.g. "Shabbos · Oct 10"), so use the label when present and only fall back
   // to the raw date range for a custom window that has no label — otherwise the
   // date would appear twice ("Shabbos · Oct 10 · Oct 10").
-  const tag = away.label || fmtDateRange(away.from, away.to);
+  const tag = away.label || fmtAwayWindow(away.from, away.to);
   const text = away.active
     ? `Away mode${tag ? ` · ${tag}` : ''}, lights simulate presence during Shabbos/Yom Tov (evenings longer, brief by day).`
     : `Away mode scheduled${tag ? ` · ${tag}` : ''}, it starts automatically as the window nears.`;

@@ -153,10 +153,11 @@ export function healthHandler({ configStore, stateStore, devices, failover, sche
         // "active" only within a week of the window (or ongoing); a window
         // further out is "scheduled" (banner shows, card doesn't read as ON).
         const am = cfg.awayMode;
-        if (!am?.enabled || !am.from || !am.to) return { active: false, scheduled: false };
+        if (!am?.enabled || !am.from) return { active: false, scheduled: false };
         const today = new Date().toISOString().slice(0, 10);
         const in7 = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
-        const live = am.to >= today;
+        // `to: null` is open-ended — it never stops being live on its own
+        const live = !am.to || am.to >= today;
         return { active: live && am.from <= in7, scheduled: live && am.from > in7, label: am.label ?? null, from: am.from, to: am.to };
       })(),
       // the standby's live view of the primary (reachable? active? last sync?)

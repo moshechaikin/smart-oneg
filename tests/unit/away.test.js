@@ -109,4 +109,53 @@ describe('applyAwayMode', () => {
     const out = applyAwayMode(acts, { awayMode: { ...base, varyPct: 50 }, zones, tzid: TZ, clusters: varyClusters });
     expect(out).toHaveLength(0);
   });
+
+  // Open-ended window (`to: null`) — the vacation-home case, "away until I
+  // turn it off". It must behave exactly like a window whose end is far in the
+  // future, and it must never be treated as "unconfigured".
+  describe('open-ended window (to: null)', () => {
+    const openEnded = { ...base, to: null };
+    const openOpts = { ...opts, awayMode: openEnded };
+
+    it('still transforms — a missing `to` is not "unconfigured"', () => {
+      const a = mk();
+      const out = applyAwayMode(a, openOpts);
+      expect(out).not.toBe(a); // not the identity no-op
+      const on = byRule(out).on;
+      expect(on.at).not.toBe(at('2025-07-04', '19:00')); // jittered like normal
+    });
+
+    it('a missing `from` IS still unconfigured', () => {
+      const a = mk();
+      expect(applyAwayMode(a, { ...opts, awayMode: { ...base, from: null, to: null } })).toBe(a);
+    });
+
+    it('matches a far-future bounded window exactly', () => {
+      const bounded = applyAwayMode(mk(), { ...opts, awayMode: { ...base, to: '2099-12-31' } });
+      const open = applyAwayMode(mk(), openOpts);
+      const key = (arr) => arr.map((x) => `${x.zone}:${x.at}:${x.type}`).sort();
+      expect(key(open)).toEqual(key(bounded));
+    });
+
+    it('covers clusters far beyond any fixed end date', () => {
+      // a cluster years after `from` is still inside an open-ended window
+      const future = [{ startsAt: new Date(at('2031-03-07', '18:00')), endsAt: new Date(at('2031-03-08', '21:30')) }];
+      const acts = [
+        { at: at('2031-03-07', '19:00'), zone: 2, level: 100, type: 'setLevel', source: { ruleId: 'on' } },
+        { at: at('2031-03-07', '22:00'), zone: 2, level: 0, type: 'setLevel', source: { ruleId: 'off' } },
+      ];
+      const out = applyAwayMode(acts, { awayMode: openEnded, zones, tzid: TZ, clusters: future });
+      expect(byRule(out).on.at).not.toBe(at('2031-03-07', '19:00')); // transformed
+      // the same actions under a window that ENDED in 2025 pass through untouched
+      const bounded = applyAwayMode(acts, { awayMode: base, zones, tzid: TZ, clusters: future });
+      expect(byRule(bounded).on.at).toBe(at('2031-03-07', '19:00'));
+    });
+
+    it('still ignores anything before `from`', () => {
+      const early = [{ startsAt: new Date(at('2025-06-06', '18:00')), endsAt: new Date(at('2025-06-07', '21:30')) }];
+      const acts = [{ at: at('2025-06-06', '19:00'), zone: 2, level: 100, type: 'setLevel', source: { ruleId: 'early' } }];
+      const out = applyAwayMode(acts, { awayMode: openEnded, zones, tzid: TZ, clusters: early });
+      expect(byRule(out).early.at).toBe(at('2025-06-06', '19:00')); // untouched
+    });
+  });
 });

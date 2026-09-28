@@ -304,4 +304,78 @@ describe('API', () => {
     expect(cascade.body.report.unconfiguredVariants.some((u) => u.dayType === 'shabbos' && u.variant === 'erev-pesach')).toBe(true);
     expect(cascade.body.actions.some((a) => a.zone === 7 && a.level === 42)).toBe(true);
   });
+
+  // Open-ended away mode: a vacation home with no known return date. The
+  // route must accept a null `to`, health must report it live, and nothing
+  // may auto-expire it.
+  describe('away mode with no end date', () => {
+    // Bearer sync token instead of a session: requireAuth accepts it, and it
+    // sidesteps the login rate limiter's module-level state, which several
+    // logins in one file will otherwise trip.
+    const login = async () => {
+      configStore.update({
+        location: { zip: '10952', lat: 41.1126, lng: -74.0736, city: 'Monsey', state: 'NY', tzid: 'America/New_York', il: false, elevation: 0 },
+        setupComplete: true,
+      });
+      const tok = configStore.get().failover.syncToken;
+      return {
+        post: (url) => request(app).post(url).set('Authorization', `Bearer ${tok}`),
+        get: (url) => request(app).get(url).set('Authorization', `Bearer ${tok}`),
+      };
+    };
+    const today = () => new Date().toISOString().slice(0, 10);
+
+    it('accepts a null `to` and stores it open-ended', async () => {
+      const agent = await login();
+      const res = await agent.post('/api/away-mode').send({ enabled: true, from: today(), to: null }).expect(200);
+      expect(res.body).toMatchObject({ enabled: true, from: today(), to: null });
+      expect(configStore.get().awayMode).toMatchObject({ enabled: true, from: today(), to: null });
+    });
+
+    it('treats an omitted `to` the same as null', async () => {
+      const agent = await login();
+      await agent.post('/api/away-mode').send({ enabled: true, from: today() }).expect(200);
+      expect(configStore.get().awayMode.to).toBeNull();
+    });
+
+    it('health reports it active, with a null `to`', async () => {
+      const agent = await login();
+      await agent.post('/api/away-mode').send({ enabled: true, from: today(), to: null }).expect(200);
+      const h = await agent.get('/api/health').expect(200);
+      expect(h.body.away).toMatchObject({ active: true, scheduled: false, from: today(), to: null });
+    });
+
+    it('a recompile never auto-expires it', async () => {
+      const agent = await login();
+      // a start date far in the PAST — a bounded window like this would be
+      // expired on sight; an open-ended one must survive
+      await agent.post('/api/away-mode').send({ enabled: true, from: '2020-01-01', to: null }).expect(200);
+      scheduler.recompile();
+      expect(configStore.get().awayMode.enabled).toBe(true);
+      // ...whereas the same window WITH an end date does get turned off
+      await agent.post('/api/away-mode').send({ enabled: true, from: '2020-01-01', to: '2020-01-05' }).expect(200);
+      scheduler.recompile();
+      expect(configStore.get().awayMode.enabled).toBe(false);
+    });
+
+    it('still rejects a missing or malformed start date', async () => {
+      const agent = await login();
+      await agent.post('/api/away-mode').send({ enabled: true, to: null }).expect(400);
+      await agent.post('/api/away-mode').send({ enabled: true, from: 'soon', to: null }).expect(400);
+    });
+
+    it('still rejects a backwards bounded range', async () => {
+      const agent = await login();
+      await agent.post('/api/away-mode').send({ enabled: true, from: '2030-01-10', to: '2030-01-01' }).expect(400);
+    });
+
+    it('turning it off clears the open-ended window', async () => {
+      const agent = await login();
+      await agent.post('/api/away-mode').send({ enabled: true, from: today(), to: null }).expect(200);
+      await agent.post('/api/away-mode').send({ enabled: false }).expect(200);
+      expect(configStore.get().awayMode).toMatchObject({ enabled: false, from: null, to: null });
+      const h = await agent.get('/api/health').expect(200);
+      expect(h.body.away).toMatchObject({ active: false, scheduled: false });
+    });
+  });
 });

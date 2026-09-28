@@ -375,8 +375,14 @@ export function schedulingRouter({ configStore, scheduler, notifier = null }) {
       scheduler.recompile();
       return res.json({ enabled: false });
     }
-    const { from, to, label } = req.body ?? {};
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(to ?? '') || from > to) {
+    const { from, label } = req.body ?? {};
+    // `to: null` = open-ended ("away until I turn it off" — a vacation home).
+    // Nothing auto-expires it; only the user turning away mode off ends it.
+    const to = req.body?.to ?? null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from ?? '')) {
+      return res.status(400).json({ error: 'A valid start date is required' });
+    }
+    if (to !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to)) {
       return res.status(400).json({ error: 'A valid from/to date range is required' });
     }
     // away and guest are mutually exclusive — turning one on turns the other off

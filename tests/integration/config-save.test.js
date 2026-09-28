@@ -137,6 +137,66 @@ describe('config saves on the REAL clock (no test mode)', () => {
     expect(bridge.levels.get(2)).toBe(80); // entering Shabbos with zones on schedule
   }, 15_000);
 
+  it('erev past the firstRule boundary: editing an already-fired rule DOES drive the lights', async () => {
+    // The erev Rosh Hashana bug: with Child Lock set to "at the day's first
+    // rule", the schedule is in force from 15:00 on (Child Lock is already
+    // correcting wall flips to it) — but the save hook gated actuation on the
+    // candle-lighting window, so an edit made at 15:30 never reached the lights.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2027-04-21T19:30:00Z')); // 15:30 EDT, after the 15:00 rule
+    const { configStore } = await boot();
+    configStore.update({ enforcement: { begins: { kind: 'firstRule' } } });
+    await sleep(300);
+    await scheduler.reconcile(); // the 15:00 rule's state is on the wire
+    await sleep(200);
+    expect(bridge.levels.get(2)).toBe(80);
+    expect(scheduler.activeCluster()).toBeNull();      // candle lighting still hours away
+    expect(scheduler.enforcingCluster()).not.toBeNull(); // ...but the schedule IS in force
+
+    // Now edit that already-fired rule: 80 -> 30. It must apply immediately.
+    configStore.update({
+      schedules: {
+        'pesach-1': { default: { rules: [
+          { id: 'erev-on', label: 'on for the seder prep', enabled: true,
+            action: { type: 'setLevel', zone: 2, level: 30, fadeSec: 0 },
+            trigger: { kind: 'fixed', time: '15:00', day: 'erev' } },
+        ] } },
+      },
+    });
+    await sleep(400);
+    expect(bridge.levels.get(2)).toBe(30);
+  }, 15_000);
+
+  it('erev past the firstRule boundary: editing a FUTURE rule actuates nothing', async () => {
+    // The counterpart guard: only a change to what the schedule wants RIGHT NOW
+    // may drive. Editing a rule that has not fired yet just re-arms its timer.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2027-04-21T19:30:00Z')); // 15:30 EDT
+    const { configStore } = await boot();
+    configStore.update({ enforcement: { begins: { kind: 'firstRule' } } });
+    await sleep(300);
+    await scheduler.reconcile();
+    await sleep(200);
+    expect(bridge.levels.get(2)).toBe(80);
+    const before = setCommands().length;
+
+    configStore.update({
+      schedules: {
+        'pesach-1': { default: { rules: [
+          { id: 'erev-on', label: 'on for the seder prep', enabled: true,
+            action: { type: 'setLevel', zone: 2, level: 80, fadeSec: 0 },
+            trigger: { kind: 'fixed', time: '15:00', day: 'erev' } },
+          { id: 'later', label: 'dim later', enabled: true,
+            action: { type: 'setLevel', zone: 2, level: 20, fadeSec: 0 },
+            trigger: { kind: 'fixed', time: '23:00', day: 'erev' } },
+        ] } },
+      },
+    });
+    await sleep(400);
+    expect(setCommands().length).toBe(before); // nothing driven
+    expect(bridge.levels.get(2)).toBe(80);     // still on the 15:00 rule
+  }, 15_000);
+
   it('reconcile never re-fires momentary automation devices', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2027-04-22T02:00:00Z')); // mid-cluster (seder night)

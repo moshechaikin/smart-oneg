@@ -63,6 +63,7 @@ beforeEach(async () => {
   configStore.update({
     zones: [
       { id: 3, name: 'Main', area: 'Dining Room', friendlyName: 'Dining', dimmable: true, enforce: false }, // lutron implicit
+      { id: 4, name: 'Hall', area: 'Hall', friendlyName: 'Hall', dimmable: false, enforce: false }, // lutron SWITCH (no ramp)
       { id: 100, source: 'hubitat', externalId: 42, name: 'Sukkah Lights', area: 'Hubitat', friendlyName: 'Sukkah', dimmable: true, enforce: false },
       { id: 101, source: 'hubitat', externalId: 77, name: 'Porch Plug', area: 'Hubitat', friendlyName: 'Porch', dimmable: false, enforce: false },
     ],
@@ -131,6 +132,61 @@ describe('DeviceBus', () => {
     expect(bridge.levels.get(3)).toBe(0);
     const sets = bridge.commandLog.slice(before).filter((l) => l.startsWith('#OUTPUT,3,1'));
     expect(sets).toEqual(['#OUTPUT,3,1,100', '#OUTPUT,3,1,0', '#OUTPUT,3,1,100', '#OUTPUT,3,1,0']);
+  });
+
+  // A Lutron dimmer RAMPS to its target instead of snapping, so a 700ms dark
+  // step only dips the light part-way before it climbs back. The dark half is
+  // held longer for that one case — an already-ON Lutron dimmer — and nothing
+  // else may change: not the command sequence, not the other zone kinds, and
+  // not a flash that starts from OFF (ramping up is already crisp).
+  describe('flash dark-step timing', () => {
+    const timeFlash = async (zone, times, restore) => {
+      const t0 = Date.now();
+      await bus.flash(zone, times, restore);
+      return Date.now() - t0;
+    };
+
+    it('holds the dark step longer for an already-ON Lutron dimmer', async () => {
+      await bus.setLevel(3, 80);
+      const before = bridge.commandLog.length;
+      const ms = await timeFlash(3, 1, 80);
+      expect(ms).toBeGreaterThan(1500); // clearly past the 700ms standard step
+      // the sequence itself is untouched — only the hold between the two writes
+      expect(bridge.commandLog.slice(before).filter((l) => l.startsWith('#OUTPUT,3,1')))
+        .toEqual(['#OUTPUT,3,1,0', '#OUTPUT,3,1,80']);
+      expect(bridge.levels.get(3)).toBe(80); // still ends restored
+    });
+
+    it('leaves a Lutron dimmer that starts OFF at the standard step', async () => {
+      await bus.setLevel(3, 0);
+      const ms = await timeFlash(3, 1, 0);
+      expect(ms).toBeLessThan(1500);
+      expect(bridge.levels.get(3)).toBe(0);
+    });
+
+    it('leaves a Lutron non-dimmable switch at the standard step', async () => {
+      await bus.setLevel(4, 100);
+      const ms = await timeFlash(4, 1, 100);
+      expect(ms).toBeLessThan(1500);
+      expect(bridge.levels.get(4)).toBe(100);
+    });
+
+    it('leaves a non-Lutron dimmer at the standard step', async () => {
+      await bus.setLevel(100, 80);
+      const ms = await timeFlash(100, 1, 80);
+      expect(ms).toBeLessThan(1500);
+    });
+
+    it('sizes the echo TTL to outlast the whole blink run', async () => {
+      // the slow path must not outlive its own echo registrations, or the
+      // remaining toggles would be read as wall-switch deviations
+      const slow = bus.flashEchoTtlMs(3, 2, 80);   // ON Lutron dimmer, 2 blinks
+      const fast = bus.flashEchoTtlMs(3, 2, 0);    // same zone starting OFF
+      expect(slow).toBeGreaterThan(fast);
+      const t0 = Date.now();
+      await bus.flash(3, 2, 80);
+      expect(Date.now() - t0).toBeLessThan(slow);
+    });
   });
 
   it('blinkLevels pairs opposite/restore and ends at restore', () => {
