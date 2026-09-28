@@ -107,17 +107,20 @@ const kelvinColor = (k) => {
 /** The On/Off/level/mode pill for one scene action. */
 function stateBadge(a, zoneOf) {
   const isMode = a.preset != null || a.hvacMode != null;
-  const badgeOn = a.flash || isMode || a.level > 0;
+  const badgeOn = a.flash || isMode || a.callId != null || a.level > 0;
+  const callName = a.callId != null
+    ? (zoneOf(a.zone)?.webhook?.calls?.find((c) => c.id === a.callId)?.name ?? a.callId) : null;
   const badgeText = a.flash ? `flash ${a.flash >= 2 ? 'twice' : 'once'}`
-    : a.preset != null ? presetLabel(a.preset)
-      : a.hvacMode != null ? hvacLabel(a.hvacMode)
-        : fmtState(zoneOf(a.zone), a.level);
+    : callName != null ? callName
+      : a.preset != null ? presetLabel(a.preset)
+        : a.hvacMode != null ? hvacLabel(a.hvacMode)
+          : fmtState(zoneOf(a.zone), a.level);
   return el('span', { class: badgeOn ? 'badge-on' : 'badge-off' }, badgeText);
 }
 
 /** One device-state row inside a scene (name + On/Off/level/mode badge). */
 function sceneStateRow(a, zoneOf, zoneName) {
-  const colorChip = !a.flash && a.level > 0 && (
+  const colorChip = !a.flash && a.callId == null && a.level > 0 && (
     a.rgb != null
       ? el('span', { class: 'inline-flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400 tabular-nums' },
           el('span', { class: 'w-2.5 h-2.5 rounded-full ring-1 ring-black/10 dark:ring-white/15', style: `background:${rgbToHex(a.rgb)}` }),
@@ -245,6 +248,11 @@ function editScene(existing, parent, scenes, zones, onSaved) {
   const presets = new Map(); // zoneId -> thermostat preset (Home/Away/…)
   const hvacs = new Map();    // zoneId -> thermostat hvac mode (heat/cool/off)
   const flashes = new Map(); // zoneId -> 1|2 (reminder blink instead of a level)
+  // Webhook members: which NAMED CALL this scene sends, at start and at end.
+  // Kept out of `levels` because a webhook holds no level at all — the same
+  // reason flashes are separate.
+  const hookStart = new Map(); // zoneId -> callId sent when the scene starts
+  const hookEnd = new Map();   // zoneId -> callId sent when the scene ends
   const inherited = new Set();
   const lastOn = new Map(); // remember dim level across off/on toggles
 
@@ -268,7 +276,11 @@ function editScene(existing, parent, scenes, zones, onSaved) {
     } else {
       for (const a of scene.actions ?? []) {
         if (a.flash) flashes.set(a.zone, a.flash);
+        else if (a.callId != null) hookStart.set(a.zone, a.callId);
         else applyMember(a.zone, a);
+      }
+      for (const a of scene.endActions ?? []) {
+        if (a.callId != null) hookEnd.set(a.zone, a.callId);
       }
     }
     for (const [z, lvl] of levels) if (lvl > 0) lastOn.set(z, lvl);
@@ -382,8 +394,43 @@ function editScene(existing, parent, scenes, zones, onSaved) {
       included && control);
   };
 
+  /**
+   * A webhook row: include it, then pick which call fires when the scene
+   * starts and (optionally) a different one when it ends. No level, no badge
+   * state — a webhook is a one-shot call, so "leave as is" at end means simply
+   * sending nothing.
+   */
+  const webhookRow = (z) => {
+    const calls = z.webhook?.calls ?? [];
+    const included = hookStart.has(z.id) || hookEnd.has(z.id);
+    const callSelect = (map, allowNone, title) => el('select', {
+      class: 'select !w-auto !py-2 shrink-0', title,
+      onchange: (e) => { if (e.target.value === '') map.delete(z.id); else map.set(z.id, e.target.value); draw(); },
+    },
+    ...(allowNone ? [el('option', { value: '', selected: !map.has(z.id) }, 'Send nothing')] : []),
+    calls.map((c) => el('option', { value: c.id, selected: map.get(z.id) === c.id }, c.name || c.id)));
+    return el('div', { class: 'flex flex-wrap items-center gap-3 py-1.5' },
+      el('input', {
+        class: 'checkbox', type: 'checkbox', checked: included, title: 'Include this webhook in the scene',
+        onchange: (e) => {
+          if (e.target.checked) hookStart.set(z.id, calls[0]?.id);
+          else { hookStart.delete(z.id); hookEnd.delete(z.id); }
+          draw();
+        },
+      }),
+      el('span', { class: 'w-36 sm:w-44 truncate text-[15px] shrink-0' }, z.friendlyName || `${z.area} ${z.name}`),
+      !calls.length
+        ? el('span', { class: 'hint' }, 'No calls configured on this device')
+        : included && el('span', { class: 'flex flex-wrap items-center gap-2' },
+          el('span', { class: 'text-sm text-stone-500 dark:text-stone-400' }, 'on start'),
+          callSelect(hookStart, true, 'Call sent when the scene starts'),
+          el('span', { class: 'text-sm text-stone-500 dark:text-stone-400' }, 'on end'),
+          callSelect(hookEnd, true, 'Call sent when the scene ends')));
+  };
+
   const deviceRow = (z) => {
     if (z.kind === 'thermostat') return thermostatRow(z);
+    if (z.kind === 'webhook') return webhookRow(z);
     const flash = flashes.get(z.id);
     const included = levels.has(z.id) || Boolean(flash);
     const level = levels.has(z.id) ? levels.get(z.id) : undefined;
@@ -656,17 +703,29 @@ function editScene(existing, parent, scenes, zones, onSaved) {
         payload = { ...scene, name: name.value, actions: [
           ...zonesActive.map((zone) => ({ zone, ...memberFields(zone) })),
           ...[...flashes.entries()].map(([zone, flash]) => ({ zone, flash })),
+          ...[...hookStart.entries()].filter(([, c]) => c).map(([zone, callId]) => ({ zone, callId })),
         ] };
       }
+      // Webhook end calls carry a callId, not a level, so they never pass
+      // through the level-based mapping below. They are also INDEPENDENT of the
+      // "customize what happens when the scene ends" toggle: that toggle is
+      // about restoring stateful devices, and a webhook-only scene has none —
+      // it would be disabled, leaving no way to set an end call at all.
+      const hookEndActions = [...hookEnd.entries()].filter(([, c]) => c).map(([zone, callId]) => ({ zone, callId }));
       if (customEnd) {
-        payload.endActions = zonesActive
-          .filter((zone) => endState.get(zone)?.mode !== 'skip')
-          .map((zone) => {
-            const st = endState.get(zone);
-            // 'on' turns the device fully on; 'level' uses the entered level; 'off' → 0
-            const level = st.mode === 'level' ? st.level : st.mode === 'on' ? 100 : 0;
-            return { zone, level };
-          });
+        payload.endActions = [
+          ...zonesActive
+            .filter((zone) => endState.get(zone)?.mode !== 'skip')
+            .map((zone) => {
+              const st = endState.get(zone);
+              // 'on' turns the device fully on; 'level' uses the entered level; 'off' → 0
+              const level = st.mode === 'level' ? st.level : st.mode === 'on' ? 100 : 0;
+              return { zone, level };
+            }),
+          ...hookEndActions,
+        ];
+      } else if (hookEndActions.length) {
+        payload.endActions = hookEndActions;
       } else {
         delete payload.endActions;
       }

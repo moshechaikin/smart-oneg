@@ -29,12 +29,12 @@ export class ZoneStateTracker extends EventEmitter {
   }
 
   /** Call immediately before sending any app-originated setLevel. */
-  expectCommand(zone, level) {
+  expectCommand(zone, level, ttlMs = ECHO_WINDOW_MS) {
     const z = this.state.zone(zone);
     z.expectedLevel = level;
     this.state.save();
     const list = this.pendingEchoes.get(zone) ?? [];
-    list.push({ level, until: Date.now() + ECHO_WINDOW_MS });
+    list.push({ level, until: Date.now() + ttlMs });
     this.pendingEchoes.set(zone, list);
   }
 
@@ -50,10 +50,13 @@ export class ZoneStateTracker extends EventEmitter {
    * blinks (flash reminders, latch-confirm) whose toggles must be suppressed
    * but which must never redefine what level the zone is supposed to hold — the
    * final blink level is a transient, not the schedule's intent.
+   *
+   * `ttlMs` widens the absorb window past the default for a blink sequence
+   * that takes longer than one command would (see DeviceBus.flashEchoTtlMs).
    */
-  expectEcho(zone, level) {
+  expectEcho(zone, level, ttlMs = ECHO_WINDOW_MS) {
     const list = this.pendingEchoes.get(zone) ?? [];
-    list.push({ level, until: Date.now() + ECHO_WINDOW_MS });
+    list.push({ level, until: Date.now() + ttlMs });
     this.pendingEchoes.set(zone, list);
   }
 

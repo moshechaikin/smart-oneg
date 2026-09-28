@@ -8,6 +8,7 @@ import { ConflictDetector } from './ConflictDetector.js';
 import { blinkLevels } from '../devices/DeviceBus.js';
 import { ZoneLock } from './ZoneLock.js';
 import { driveZone } from './driveZone.js';
+import { isMomentary } from './zoneKinds.js';
 
 const HORIZON_PAST_MS = 24 * 3600_000;
 const HORIZON_FUTURE_MS = 72 * 3600_000;
@@ -79,9 +80,23 @@ export class Scheduler extends EventEmitter {
       //    actually in force: a real active Shabbos/Yom Tov window, or any time in
       //    test mode (a rehearsal, where seeing the effect on the lights is the
       //    point). Boot/reconnect catch-up is separate (Lutron 'ready' -> reconcile).
+      const before = this.#expectedByZone();
       this.recompile({ catchup: false });
       if (this.testOffsetMs !== 0 || this.activeCluster()) {
         this.reconcile().catch((err) => this.log?.error({ err: err.message }, 'reconcile after config change failed'));
+      } else if (this.enforcingCluster()) {
+        // Erev, past the user's Child Lock boundary but before candle lighting.
+        // The schedule IS in force here (Child Lock is already correcting wall
+        // flips to it), so a rule/scene edit whose action has already fired must
+        // reach the lights — the candle-lighting gate above would silently defer
+        // it, which is the erev Rosh Hashana bug.
+        //
+        // Targeted, NOT a full reconcile: only zones whose expected level for
+        // *right now* actually moved. A settings save (e.g. Child Lock timing)
+        // leaves every target where it was, so it still actuates nothing — that
+        // is the "Save timing turned the lights on" regression, preserved.
+        this.#applyExpectedChanges(before)
+          .catch((err) => this.log?.error({ err: err.message }, 'applying schedule edit after config change failed'));
       }
       // a location change moves the cron timezone — rebuild the jobs so the
       // daily recompile keeps firing at LOCAL midnight, not the old zone's
@@ -120,7 +135,7 @@ export class Scheduler extends EventEmitter {
     if (this.testOffsetMs === 0) {
       this.testSnapshot = new Map();
       for (const z of this.config.get().zones) {
-        if (z.kind === 'automation') continue; // momentary: exit-restore must never re-fire a trigger
+        if (isMomentary(z)) continue; // momentary: exit-restore must never re-fire a trigger
         let level = this.tracker.reported?.(z.id) ?? this.tracker.expected?.(z.id);
         if (this.devices.connected) {
           // Prefer a live read, but never let a failed/empty query drop a zone we
@@ -181,7 +196,7 @@ export class Scheduler extends EventEmitter {
     if (!this.scenePreview) {
       const snapshot = [];
       for (const z of this.config.get().zones) {
-        if (z.kind === 'automation') continue; // momentary: nothing to restore (and "restoring" could re-fire it)
+        if (isMomentary(z)) continue; // momentary: nothing to restore (and "restoring" could re-fire it)
         const lvl = this.tracker.reported?.(z.id);
         if (lvl !== undefined && lvl !== null) snapshot.push([z.id, lvl]);
       }
@@ -191,6 +206,10 @@ export class Scheduler extends EventEmitter {
     this.scenePreview.startedAt = Date.now();
     for (const a of resolved.actions) {
       if (a.flash) continue; // flash members are reminders, not preview state
+      // A webhook member is a real outbound side effect with nothing to
+      // restore — a preview must never fire one. Exiting the preview could not
+      // undo it, and the user is only asking to SEE the scene.
+      if (a.callId != null) continue;
       await this.#withZoneLock(a.zone, async () => {
         // thermostat mode members drive the preset / hvac mode, not a level
         if (a.preset != null) { await this.devices.setPreset?.(a.zone, a.preset).catch(() => {}); return; }
@@ -311,6 +330,8 @@ export class Scheduler extends EventEmitter {
       return;
     }
     // Away mode auto-expires once its date window has fully passed (real time).
+    // The `cfg.awayMode.to` guard is load-bearing: an open-ended window (a
+    // vacation home, "until I turn it off") has no `to` and must never expire.
     if (this.canAct() && cfg.awayMode?.enabled && cfg.awayMode.to
       && realNow > new Date(`${cfg.awayMode.to}T23:59:59`).getTime() + 6 * 3600_000) {
       this.log?.info('away mode window elapsed — turning it off');
@@ -381,7 +402,7 @@ export class Scheduler extends EventEmitter {
       this.config.get().zones
         // momentary triggers (HA automations/scripts): re-syncing "expected
         // state" would RE-RUN the action — they fire once, at their rule's time
-        .filter((z) => z.kind !== 'automation')
+        .filter((z) => !isMomentary(z))
         .map((z) => this.#withZoneLock(z.id, () => this.#reconcileZone(z.id))),
     );
   }
@@ -413,6 +434,45 @@ export class Scheduler extends EventEmitter {
     } catch (err) {
       this.log?.error({ zone, err: err.message }, 'reconcile setLevel failed');
     }
+  }
+
+  /** Snapshot of every governed zone's expected level for right now. */
+  #expectedByZone() {
+    const map = new Map();
+    for (const z of this.config.get().zones) {
+      if (isMomentary(z)) continue; // momentary: holds no level
+      const level = expectedLevel(this.compiled.allActions, z.id, this.now());
+      if (level !== undefined) map.set(z.id, level);
+    }
+    return map;
+  }
+
+  /**
+   * Drive only the zones whose expected level for right now CHANGED across the
+   * recompile — i.e. the user edited a rule or scene whose action has already
+   * fired, so the schedule now wants something different from what is on the
+   * wire. Compare against a `#expectedByZone()` snapshot taken BEFORE it.
+   *
+   * A zone that was ungoverned and now has a level counts as changed (a rule
+   * added for a time already past). A zone that LOST its governing rule does
+   * not: there is no target to drive it to, so it keeps its current state.
+   */
+  async #applyExpectedChanges(before) {
+    if (!this.canAct()) return;
+    if (!this.devices.connected) return;
+    const zones = [];
+    for (const z of this.config.get().zones) {
+      if (isMomentary(z)) continue;
+      const after = expectedLevel(this.compiled.allActions, z.id, this.now());
+      if (after === undefined) continue;
+      if (before.get(z.id) === after) continue;
+      zones.push(z.id);
+    }
+    if (!zones.length) return;
+    this.log?.info({ zones }, 'schedule edit changed the current target — applying to those zones');
+    // Same per-zone turn as a reconcile (lock, fresh authority/clock/expected
+    // reads, latch skip) — just restricted to the zones that actually moved.
+    await Promise.all(zones.map((id) => this.#withZoneLock(id, () => this.#reconcileZone(id))));
   }
 
   activeCluster() {
@@ -475,7 +535,14 @@ export class Scheduler extends EventEmitter {
     }
   }
 
-  #updateActiveCluster(now, { catchup = true } = {}) {
+  /**
+   * Resolve the Child Lock boundary at `now`, per the configured
+   * `enforcement.begins`. Returns the raw time-window cluster (`timeActive`),
+   * the cluster the boundary belongs to (`candidate`), that boundary
+   * (`enforceFrom`), and the cluster actually being enforced (`active`, null
+   * until the boundary passes).
+   */
+  #boundaryAt(now) {
     const timeActive = this.activeCluster();
     // enforcement may begin BEFORE the cluster window (early Shabbos) or AFTER
     // it opens ("at shkia") — the configured boundary governs Child Lock
@@ -485,6 +552,21 @@ export class Scheduler extends EventEmitter {
     // Only enforce once the boundary passes: for "at shkia" the cluster window
     // (candle lighting) can be open while Child Lock is still holding off.
     const active = candidate && now >= enforceFrom ? candidate : null;
+    return { timeActive, next, candidate, enforceFrom, active };
+  }
+
+  /**
+   * The cluster whose schedule is IN FORCE right now, per the user's Child
+   * Lock `begins` setting — which is the same question `activeCluster()`
+   * answers for the raw candle-lighting..havdalah window. With
+   * `begins: firstRule` this opens at the erev's first rule, hours earlier.
+   */
+  enforcingCluster() {
+    return this.#boundaryAt(this.now()).active;
+  }
+
+  #updateActiveCluster(now, { catchup = true } = {}) {
+    const { timeActive, next, candidate, enforceFrom, active } = this.#boundaryAt(now);
     const becameActive = active && active.id !== this.#lastActiveClusterId;
     this.#lastActiveClusterId = active?.id ?? null;
     this.state.get().activeClusterId = timeActive?.id ?? null;
@@ -558,7 +640,7 @@ export class Scheduler extends EventEmitter {
     // zone must not delay every later zone's catch-up
     await Promise.all(
       cfg.zones
-        .filter((z) => z.enforce && z.kind !== 'automation')
+        .filter((z) => z.enforce && !isMomentary(z))
         .map((z) => this.#withZoneLock(z.id, () => this.#catchupZone(z.id))),
     );
   }
@@ -584,7 +666,7 @@ export class Scheduler extends EventEmitter {
   /** Keep tracker.expected in sync after a recompile (no commands sent). */
   #refreshExpectedLevels(now) {
     for (const zoneCfg of this.config.get().zones) {
-      if (zoneCfg.kind === 'automation') continue; // momentary: always idle, never "expected on"
+      if (isMomentary(zoneCfg)) continue; // momentary: always idle, never "expected on"
       const level = expectedLevel(this.compiled.allActions, zoneCfg.id, now);
       if (level !== undefined) this.tracker.setExpected(zoneCfg.id, level);
     }
@@ -637,7 +719,11 @@ export class Scheduler extends EventEmitter {
       return;
     }
     try {
-      if (action.type === 'setAutomation') {
+      if (action.type === 'callWebhook') {
+        // momentary by construction: one shot, no verify, no retry. A retry
+        // could re-run a call that actually went through (see WebhookProvider).
+        await this.devices.callWebhook(action.zone, action.callId);
+      } else if (action.type === 'setAutomation') {
         // enable/disable an HA automation — a persistent state, not a level, so
         // it bypasses the tracker/enforcement entirely
         await this.devices.setAutomationEnabled?.(action.zone, action.enabled);
@@ -656,9 +742,13 @@ export class Scheduler extends EventEmitter {
         // never redefine the zone's expected level (expectCommand would leave it
         // at the final blink level, silently inverting what the schedule wants
         // and turning a benign on-light into an enforcement fight → false latch).
-        for (const level of blinkLevels(restore, times)) this.tracker.expectEcho(action.zone, level);
+        // TTL covers the whole blink sequence: a Lutron dimmer holds its dark
+        // step longer (it ramps, see DeviceBus), so the default 5s window could
+        // expire mid-flash and the remaining toggles would look like wall flips.
+        const echoTtl = this.devices.flashEchoTtlMs?.(action.zone, times, restore);
+        for (const level of blinkLevels(restore, times)) this.tracker.expectEcho(action.zone, level, echoTtl);
         await this.devices.flash(action.zone, times, restore);
-      } else if (this.config.get().zones.find((z) => z.id === action.zone)?.kind === 'automation') {
+      } else if (isMomentary(this.config.get().zones.find((z) => z.id === action.zone))) {
         // momentary trigger (HA automation/script): fire AT MOST ONCE — the
         // verify/retry path could re-run an action that actually went through
         // (a trigger never holds a queryable level to verify against)

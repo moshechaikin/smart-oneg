@@ -3,6 +3,27 @@ import { parseIntegrationReport } from '../lutron/protocol.js';
 import { findZoneReferences } from '../engine/references.js';
 import { blinkLevels } from '../devices/DeviceBus.js';
 import { driveZone } from '../engine/driveZone.js';
+import { WebhookProvider } from '../devices/WebhookProvider.js';
+import { nanoid } from 'nanoid';
+
+/** Fill in defaults + stable ids so every stored call is complete. */
+function normalizeWebhook(wh) {
+  const src = wh && typeof wh === 'object' ? wh : {};
+  return {
+    timeoutMs: Number.isInteger(src.timeoutMs) ? src.timeoutMs : 10000,
+    auth: src.auth ?? { kind: 'none' },
+    headers: Array.isArray(src.headers) ? src.headers.filter((h) => h?.name) : [],
+    calls: (Array.isArray(src.calls) ? src.calls : []).map((c, i) => ({
+      id: c?.id || `c${i + 1}-${nanoid(4)}`,
+      name: (c?.name ?? '').trim(),
+      method: (c?.method ?? 'POST').toUpperCase(),
+      url: (c?.url ?? '').trim(),
+      headers: Array.isArray(c?.headers) ? c.headers.filter((h) => h?.name) : [],
+      contentType: c?.contentType || 'application/json',
+      body: c?.body ?? '',
+    })),
+  };
+}
 
 export function lightingRouter({ configStore, stateStore, scheduler, tracker, enforcement, devices, logger }) {
   const router = Router();
@@ -158,6 +179,74 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
     };
     configStore.update({ zones: [...existing, zone] });
     res.status(201).json(zone);
+  });
+
+  /**
+   * Create or replace a webhook device. Unlike every other device source there
+   * is nothing to import from a bridge — the device IS its config — so this
+   * takes the whole `webhook` block and lets config validation reject a bad
+   * one (schema.js validateWebhookZone). A malformed URL must fail HERE, on
+   * save, not as a dead action mid-Shabbos.
+   */
+  router.post('/zones/webhook', (req, res) => {
+    const { name, area = 'Webhooks', webhook } = req.body ?? {};
+    if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+    const existing = configStore.get().zones;
+    const id = Math.max(99, ...existing.map((z) => z.id)) + 1;
+    const zone = {
+      id, source: 'webhook', externalId: id, kind: 'webhook',
+      name: name.trim(), area, friendlyName: name.trim(),
+      dimmable: false, enforce: false,
+      webhook: normalizeWebhook(webhook),
+    };
+    try {
+      configStore.update({ zones: [...existing, zone] });
+    } catch (err) {
+      return res.status(400).json({ error: err.message, validationErrors: err.validationErrors });
+    }
+    res.status(201).json(zone);
+  });
+
+  router.put('/zones/:id/webhook', (req, res) => {
+    const id = Number(req.params.id);
+    const cfg = configStore.get();
+    const zone = cfg.zones.find((z) => z.id === id);
+    if (!zone) return res.status(404).json({ error: 'zone not found' });
+    if (zone.kind !== 'webhook') return res.status(400).json({ error: 'not a webhook device' });
+    const next = { ...zone, webhook: normalizeWebhook(req.body?.webhook) };
+    if (req.body?.name?.trim()) { next.name = req.body.name.trim(); next.friendlyName = req.body.name.trim(); }
+    if (req.body?.area) next.area = req.body.area;
+    try {
+      configStore.update({ zones: cfg.zones.map((z) => (z.id === id ? next : z)) });
+    } catch (err) {
+      return res.status(400).json({ error: err.message, validationErrors: err.validationErrors });
+    }
+    res.json(next);
+  });
+
+  /**
+   * Fire one call NOW, so the user can verify a webhook before relying on it.
+   * Accepts either a saved call id or an unsaved draft call, so "Test" works
+   * from inside the editor before anything is committed.
+   */
+  router.post('/zones/:id/webhook/test', async (req, res) => {
+    const id = Number(req.params.id);
+    const cfg = configStore.get();
+    const saved = cfg.zones.find((z) => z.id === id);
+    // An unsaved draft device (creating a new one) sends the whole zone shape.
+    const zone = req.body?.webhook
+      ? { ...(saved ?? { id, friendlyName: req.body?.name ?? 'New webhook' }), webhook: normalizeWebhook(req.body.webhook) }
+      : saved;
+    if (!zone) return res.status(404).json({ error: 'zone not found' });
+    const provider = devices.provider?.('webhook');
+    if (!provider) return res.status(503).json({ error: 'webhook provider not available' });
+    try {
+      const call = req.body?.call ?? WebhookProvider.findCall(zone, req.body?.callId);
+      const out = await provider.testCall(zone, call);
+      res.json({ ok: true, ...out });
+    } catch (err) {
+      res.status(502).json({ ok: false, error: err.message });
+    }
   });
 
   /** Remove a device. 409 with the referencing rules/scenes unless force. */
@@ -369,7 +458,10 @@ export function lightingRouter({ configStore, stateStore, scheduler, tracker, en
         // before us may have changed the level we must restore to.
         const raw = tracker.reported(id) ?? tracker.expected(id) ?? 0;
         const restore = devices.coerceLevel?.(id, raw) ?? raw;
-        for (const level of blinkLevels(restore, times)) tracker.expectCommand(id, level);
+        // up to 5 blinks here — well past a single command's echo window even
+        // before the Lutron dimmer's longer dark step, so size the TTL to the run
+        const echoTtl = devices.flashEchoTtlMs?.(id, times, restore);
+        for (const level of blinkLevels(restore, times)) tracker.expectCommand(id, level, echoTtl);
         await devices.flash(id, times, restore);
       });
       res.json({ ok: true });

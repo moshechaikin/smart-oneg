@@ -104,6 +104,45 @@ export function deepMerge(base, partial) {
 }
 
 /**
+ * A webhook device holds NAMED CALLS; a rule or scene member picks one by id
+ * (the thermostat-preset shape, not an on/off level). Validated strictly on
+ * every write: a malformed URL or a duplicate call id would only surface as a
+ * failed action mid-Shabbos, which is exactly when nobody can fix it.
+ */
+const WEBHOOK_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
+export function validateWebhookZone(z, check) {
+  check(z.source === 'webhook' && z.kind === 'webhook',
+    `zone ${z.id}: a webhook device must have source "webhook" and kind "webhook"`);
+  const wh = z.webhook;
+  check(wh && typeof wh === 'object', `zone ${z.id}: webhook config required`);
+  if (!wh || typeof wh !== 'object') return;
+  check(Array.isArray(wh.calls) && wh.calls.length > 0, `zone ${z.id}: at least one webhook call is required`);
+  if (wh.timeoutMs != null) {
+    check(Number.isInteger(wh.timeoutMs) && wh.timeoutMs >= 1000 && wh.timeoutMs <= 60000,
+      `zone ${z.id}: webhook.timeoutMs must be 1000-60000`);
+  }
+  const auth = wh.auth ?? { kind: 'none' };
+  check(['none', 'bearer', 'basic', 'header'].includes(auth.kind),
+    `zone ${z.id}: webhook.auth.kind must be none|bearer|basic|header`);
+  if (auth.kind === 'bearer') check(Boolean(auth.token), `zone ${z.id}: bearer auth needs a token`);
+  if (auth.kind === 'basic') check(Boolean(auth.username), `zone ${z.id}: basic auth needs a username`);
+  if (auth.kind === 'header') check(Boolean(auth.headerName), `zone ${z.id}: header auth needs a header name`);
+  const seen = new Set();
+  for (const c of wh.calls ?? []) {
+    check(Boolean(c?.id), `zone ${z.id}: every webhook call needs an id`);
+    check(!seen.has(c?.id), `zone ${z.id}: duplicate webhook call id "${c?.id}"`);
+    seen.add(c?.id);
+    check(Boolean(c?.name?.trim?.()), `zone ${z.id}: webhook call "${c?.id}" needs a name`);
+    check(WEBHOOK_METHODS.includes((c?.method ?? 'POST').toUpperCase()),
+      `zone ${z.id}: webhook call "${c?.id}" has an unsupported method`);
+    // http/https only: a file:// or similar would be a local-file read
+    let ok = false;
+    try { const u = new URL(c?.url ?? ''); ok = u.protocol === 'http:' || u.protocol === 'https:'; } catch { ok = false; }
+    check(ok, `zone ${z.id}: webhook call "${c?.id}" needs a valid http(s) URL`);
+  }
+}
+
+/**
  * Validate essential config shape. Returns { valid, errors }. Intentionally
  * lenient about unknown keys (forward compatibility for imports).
  */
@@ -128,7 +167,8 @@ export function validateConfig(cfg) {
   check(Array.isArray(cfg.zones), 'zones must be an array');
   for (const z of cfg.zones ?? []) {
     check(Number.isInteger(z.id), `zone id must be integer (got ${JSON.stringify(z.id)})`);
-    check(['lutron', 'hubitat', 'virtual', 'ecobee', 'homeassistant', 'homebridge', 'matter', 'envisalink', undefined].includes(z.source), `zone ${z.id}: unknown source ${z.source}`);
+    check(['lutron', 'hubitat', 'virtual', 'ecobee', 'homeassistant', 'homebridge', 'matter', 'envisalink', 'webhook', undefined].includes(z.source), `zone ${z.id}: unknown source ${z.source}`);
+    if (z.source === 'webhook' || z.kind === 'webhook') validateWebhookZone(z, check);
   }
   const ids = (cfg.zones ?? []).map((z) => z.id);
   check(new Set(ids).size === ids.length, 'zone ids must be unique');

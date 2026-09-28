@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { blinkLevels } from '../devices/DeviceBus.js';
 import { ZoneLock } from '../engine/ZoneLock.js';
 import { driveZone } from '../engine/driveZone.js';
+import { isMomentary } from '../engine/zoneKinds.js';
 
 // The override "window" is the maximum gap allowed BETWEEN two consecutive
 // presses for the second to keep counting toward the manual-hold threshold.
@@ -148,7 +149,7 @@ export class EnforcementEngine extends EventEmitter {
     if (!zoneCfg?.enforce) return false;
     // momentary triggers (HA automations/scripts) hold no level to enforce —
     // "correcting" one would re-run it
-    if (zoneCfg.kind === 'automation') return false;
+    if (isMomentary(zoneCfg)) return false;
     if (!this.#activeCluster) return false;
     const now = this.now();
     // users who accept Shabbos early can configure an earlier boundary
@@ -247,7 +248,8 @@ export class EnforcementEngine extends EventEmitter {
         // change — echo-only, so the confirm blink never rewrites
         // expectedLevel. Registered inside the lock turn so the 5s echo
         // window starts when the writes actually begin, not while queued.
-        for (const l of blinkLevels(level, 2)) (this.tracker.expectEcho ?? this.tracker.expectCommand)?.call(this.tracker, zone, l);
+        const echoTtl = this.devices.flashEchoTtlMs?.(zone, 2, level);
+        for (const l of blinkLevels(level, 2)) (this.tracker.expectEcho ?? this.tracker.expectCommand)?.call(this.tracker, zone, l, echoTtl);
         await this.devices.flash(zone, 2, level);
       });
     } catch (err) {

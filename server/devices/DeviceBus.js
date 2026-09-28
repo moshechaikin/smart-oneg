@@ -1,6 +1,21 @@
 import { EventEmitter } from 'node:events';
 
 const BLINK_STEP_MS = 700;
+/**
+ * How long the DARK half of a blink is held on a Lutron dimmer that was
+ * already ON. Lutron dimmers ramp to a target instead of snapping, so a 700ms
+ * dark step only dips the light part-way before it starts climbing back — the
+ * blink reads as a brief flicker rather than a real off/on. Holding the dark
+ * step longer lets the ramp actually reach off, so the blink is as prominent
+ * as it is on a switch.
+ *
+ * Only ON -> off is affected: a light that starts OFF ramps UP into a bright
+ * step, which is already crisp, and is left exactly as it was.
+ */
+const LUTRON_DIM_DARK_MS = 2200;
+/** Grace kept after a flash's last write before its echoes expire — the same
+ *  window a normal one-shot command gets (see ZoneStateTracker). */
+const FLASH_ECHO_GRACE_MS = 5000;
 
 /**
  * The ordered levels a flash will set: opposite-of-restore / restore pairs,
@@ -136,6 +151,18 @@ export class DeviceBus extends EventEmitter {
     return provider.setLevel(externalId, this.coerceLevel(zoneId, level), fadeSec);
   }
 
+  /**
+   * Fire one named call on a webhook device. Momentary: no retry, no verify —
+   * see WebhookProvider for why at-most-once is the requirement.
+   */
+  async callWebhook(zoneId, callId) {
+    const { provider, externalId } = this.#route(zoneId);
+    if (typeof provider.callWebhook !== 'function') {
+      throw new Error(`zone ${zoneId} is not a webhook device`);
+    }
+    return provider.callWebhook(externalId, callId);
+  }
+
   /** Enable/disable an automation (HA only); no-op for providers without it. */
   async setAutomationEnabled(zoneId, enabled) {
     const { provider, externalId } = this.#route(zoneId);
@@ -213,14 +240,50 @@ export class DeviceBus extends EventEmitter {
     const { provider, externalId } = this.#route(zoneId);
     const restore = this.coerceLevel(zoneId, restoreLevel ?? 0);
     const seq = blinkLevels(restore, Math.max(1, times ?? 1));
+    const darkMs = this.#darkStepMs(zoneId, restore);
     for (let i = 0; i < seq.length; i++) {
       if (i === seq.length - 1) {
         await provider.setLevel(externalId, seq[i], 0); // final restore must not be swallowed
       } else {
         await provider.setLevel(externalId, seq[i], 0).catch(() => {});
-        await new Promise((r) => setTimeout(r, BLINK_STEP_MS));
+        await new Promise((r) => setTimeout(r, this.#stepMs(seq[i], restore, darkMs)));
       }
     }
+  }
+
+  /** Hold time after setting `level` in a blink whose restore is `restore`.
+   *  blinkLevels alternates opposite/restore, and when the light is ON the
+   *  opposite is 0 — so `level === 0 && restore > 0` is exactly the dark half. */
+  #stepMs(level, restore, darkMs) {
+    return level === 0 && restore > 0 ? darkMs : BLINK_STEP_MS;
+  }
+
+  /** The dark-step hold for this zone: longer only for an already-ON Lutron
+   *  dimmer, which ramps rather than snaps (see LUTRON_DIM_DARK_MS). */
+  #darkStepMs(zoneId, restore) {
+    if (restore <= 0) return BLINK_STEP_MS; // starts OFF: ramping UP is already crisp
+    const zone = this.config.get().zones.find((z) => z.id === zoneId);
+    if (!zone) return BLINK_STEP_MS;
+    if ((zone.source ?? 'lutron') !== 'lutron') return BLINK_STEP_MS; // other bridges snap
+    if (!zone.dimmable) return BLINK_STEP_MS; // a Lutron switch has no ramp to wait out
+    return LUTRON_DIM_DARK_MS;
+  }
+
+  /**
+   * How long a flash's echo registrations must stay valid: the whole blink
+   * sequence plus the normal post-command grace. Callers pre-register the
+   * blink levels BEFORE calling flash(), so with the default 5s window a slow
+   * (Lutron-dimmer, or many-times) flash could outlive its own echoes and have
+   * its toggles read as wall-switch deviations.
+   */
+  flashEchoTtlMs(zoneId, times, restoreLevel) {
+    let restore;
+    try { restore = this.coerceLevel(zoneId, restoreLevel ?? 0); } catch { return FLASH_ECHO_GRACE_MS; }
+    const seq = blinkLevels(restore, Math.max(1, times ?? 1));
+    const darkMs = this.#darkStepMs(zoneId, restore);
+    let total = 0;
+    for (let i = 0; i < seq.length - 1; i++) total += this.#stepMs(seq[i], restore, darkMs);
+    return total + FLASH_ECHO_GRACE_MS;
   }
 
   #route(zoneId) {

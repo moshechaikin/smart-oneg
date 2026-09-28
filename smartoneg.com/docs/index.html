@@ -167,6 +167,7 @@
         <div class="text-xs uppercase tracking-wide text-stone-500 px-3 mb-1 mt-5">Usage</div>
         <a href="#devices" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Devices &amp; bridges</a>
         <a href="#alarm" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Alarm (EnvisaLink)</a>
+        <a href="#webhooks" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Webhooks</a>
         <a href="#schedules" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Schedules &amp; rules</a>
         <a href="#situations" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Situations &amp; inheritance</a>
         <a href="#child-lock" class="sidelink block px-3 py-1.5 rounded-lg border border-transparent text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white">Child Lock</a>
@@ -315,8 +316,35 @@ docker compose restart smart-oneg</code></pre>
       </ol>
       <p>Only DSC panels are supported directly today. Your alarm code is stored on-device alongside your other credentials, and disarming uses it automatically. If you have a different alarm/security system with arming, disarming, or bypass exposed as an entity or automation in Home Assistant, you can import it into SmartOneg the same way as any other Home Assistant device, see <a href="#devices">Devices &amp; bridges</a>.</p>
 
+      <h2 id="webhooks">Webhooks (call your own URLs)</h2>
+      <p>A <strong>webhook device</strong> lets SmartOneg call your own HTTP endpoints from a rule or a scene, so you can drive anything it doesn't support natively: a system that only exposes a REST API, a script on another machine, a notification service, or a building/access system that already has a &ldquo;Shabbos mode&rdquo; of its own. SmartOneg supplies the Hebrew-calendar timing; the other system does the work.</p>
+      <p>Unlike every other device, a webhook holds <strong>no state</strong>. There is nothing to turn on or off. Instead it holds one or more <strong>named calls</strong>, and a rule or scene picks a call by name, exactly the way a thermostat rule picks a mode.</p>
+      <h3>Adding one</h3>
+      <ol>
+        <li><strong>Devices → Add devices → Webhook.</strong> Give the device a name (e.g. <em>Sukkah Heater</em>).</li>
+        <li>Add a <strong>call</strong> for each thing you want to be able to trigger: a name, a method (<code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>PATCH</code>, <code>DELETE</code>, <code>HEAD</code>), the URL, and an optional JSON body. Press <strong>Add another call</strong> for more, for example <em>Start heater</em> and <em>Stop heater</em>.</li>
+        <li>Set <strong>authentication</strong> once for the whole device if the endpoint needs it: a bearer token, a username and password (HTTP basic), or a custom header such as <code>X-Api-Key</code>. It's applied to every call on that device.</li>
+        <li>Press <strong>Test</strong> on any call to send it right now and see the real status code and response time. Test works <em>before</em> you save, so a wrong URL is caught at your desk rather than mid-Yom&nbsp;Tov.</li>
+      </ol>
+      <p>Only <code>http</code> and <code>https</code> URLs are accepted, and a malformed one is rejected when you save, not when it fires. Each device has its own <strong>timeout</strong> (10&nbsp;seconds by default) so a slow or unreachable endpoint can never hold up the rest of your schedule.</p>
+      <h3>Using it in rules and scenes</h3>
+      <ul>
+        <li><strong>In a rule:</strong> choose <em>Call webhook</em>, pick the device, then pick which call to send. One rule can target several webhook devices at once.</li>
+        <li><strong>In a scene:</strong> tick the webhook under <em>Webhooks</em> and choose a call for <strong>on start</strong> and, if you want, a different one for <strong>on end</strong>. That gives you &ldquo;start the meal scene → heater on&rdquo; and &ldquo;end the meal scene → heater off&rdquo; in one place. Unlike other devices, a webhook's end call does not require <em>Customize what happens when the scene ends</em>.</li>
+        <li>In the <strong>timeline preview</strong>, a webhook action shows the call's name, so you can see exactly what will be sent and when.</li>
+      </ul>
+      <h3>Called once, never replayed</h3>
+      <p>This is the important guarantee. SmartOneg cannot read the state of whatever is on the other end of a URL, so it never assumes a call needs repeating. A webhook is sent <strong>at most once</strong>, at its scheduled time:</p>
+      <ul>
+        <li>It is <strong>never retried</strong> on failure, and never re-sent after a restart, a bridge reconnect, a backup instance taking over, or a settings save.</li>
+        <li>It is <strong>never</strong> corrected by Child Lock, which enforces device levels and has nothing to enforce here.</li>
+        <li>A <strong>scene preview</strong> deliberately skips webhook members. A preview is for seeing a scene, and an outbound call can't be taken back.</li>
+      </ul>
+      <p>If a call fails (a non-2xx response, or a timeout) it's logged and raises the usual <em>action failed</em> notification, so you find out rather than it disappearing silently.</p>
+      <p><strong>A note on credentials.</strong> Tokens and passwords you enter here are stored in your config alongside your other device credentials, which means they're included in a config export or backup file. Treat those files accordingly.</p>
+
       <h2 id="schedules">Schedules &amp; rules</h2>
-      <p>A rule is <em>what</em> happens and <em>when</em>. The “what” is a device (or several) turned on/off or set to a brightness (the label adapts to the device, lock/unlock, arm/disarm, open/close, start/dock, and so on), a thermostat action (hold temperature, resume schedule, preset, or HVAC mode), a scene start/end, a flash reminder, or an automation run, enabled, or disabled. The “when” is either a fixed clock time or an offset relative to a zman (candle lighting, shkia, tzeis, alos, plag, sof zman shma/tefilla). Every rule resolves to a real time in the <strong>live preview</strong> before you save, including rare situations decades out.</p>
+      <p>A rule is <em>what</em> happens and <em>when</em>. The “what” is a device (or several) turned on/off or set to a brightness (the label adapts to the device, lock/unlock, arm/disarm, open/close, start/dock, and so on), a thermostat action (hold temperature, resume schedule, preset, or HVAC mode), a scene start/end, a flash reminder, a <a href="#webhooks">webhook call</a>, or an automation run, enabled, or disabled. The “when” is either a fixed clock time or an offset relative to a zman (candle lighting, shkia, tzeis, alos, plag, sof zman shma/tefilla). Every rule resolves to a real time in the <strong>live preview</strong> before you save, including rare situations decades out.</p>
 
       <h3>Fixed time vs. relative to a zman</h3>
       <p>Prefer <strong>relative to a zman</strong> whenever the intent is tied to the day, because it tracks the season automatically. “Turn the dining room on 1 hour before shkia” is right in June and December without you touching it; “turn it on at 6:45 PM” is only right for a few weeks a year. Reach for a <strong>fixed time</strong> when the intent really is a wall-clock moment, “kids' room off at 7:30 PM,” “front porch off at 11:00 PM.” You can combine them: a fixed time with clamps, or a zman offset with a floor/ceiling (below).</p>
@@ -398,7 +426,7 @@ docker compose restart smart-oneg</code></pre>
       <p>In the day editor preview timeline, the rule a guest override replaces is shown struck through and marked <strong>overridden by guest</strong>, so you can see both what the scene would have done and what the guest changed. The simpler overview timeline (in a Shabbos or Yom Tov overview page) just shows the final result.</p>
 
       <h3>Away mode (presence simulation)</h3>
-      <p>Going away for Shabbos or Yom Tov? Turn on <strong>away mode</strong> and pick a window, a single Shabbos, a whole festival (e.g. all of Sukkos) or just its <em>first days</em> / <em>last days</em>, or a custom date range. Instead of a separate schedule, it takes <strong>your own schedule</strong> and layers bounded randomness on it so the house looks occupied:</p>
+      <p>Going away for Shabbos or Yom Tov? Turn on <strong>away mode</strong> and pick a window, a single Shabbos, a whole festival (e.g. all of Sukkos) or just its <em>first days</em> / <em>last days</em>, a custom date range, or <strong>no end date at all</strong>. Instead of a separate schedule, it takes <strong>your own schedule</strong> and layers bounded randomness on it so the house looks occupied:</p>
       <ul>
         <li><strong>Jittered times</strong>, each on/off shifts by up to ±15&nbsp;minutes so it isn't robotically identical every night.</li>
         <li><strong>Evening-weighted lit periods</strong>, lights are kept on <em>longer in the evening</em> (when it's dark and presence actually reads) and only <em>briefly during the day</em>.</li>
@@ -407,6 +435,7 @@ docker compose restart smart-oneg</code></pre>
         <li>Only your <strong>lights</strong> are affected, never appliances (fridge Sabbath mode, urn), thermostats, alarms or shades.</li>
       </ul>
       <p><strong>When it applies.</strong> Away mode runs on the exact same window as Child Lock: from <strong>candle lighting to havdalah</strong> of each Shabbos/Yom Tov in your chosen range. It never touches erev preparation before candle lighting, wind-down after havdalah, <strong>Chol Hamoed</strong>, or ordinary weekdays. A window more than a week out shows as <em>scheduled</em> (a banner) and only becomes <em>active</em> as it nears; it turns itself off automatically once the window has passed. It is <strong>mutually exclusive with guest mode</strong>.</p>
+      <p><strong>No end date (vacation homes).</strong> If you don't know when you're coming back, choose <strong>Until I turn it off</strong>. Presence simulation then runs on every Shabbos and Yom Tov from that day onward and <em>never</em> expires on its own, so a house you visit a few times a year keeps looking lived-in without you re-arming it each time. It's the only away window that isn't cleared automatically: the banner and the Away card both read <em>&ldquo;until you turn it off&rdquo;</em>, and it stops the moment you press <strong>Turn off</strong>.</p>
       <p><strong>Predictable.</strong> Because the whole transform is seeded, it's <em>deterministic</em>, the timeline preview shows exactly what will happen each night, and a backup instance simulates the identical pattern if it takes over.</p>
 
       <h3>Test mode (rehearse a Shabbos or Yom Tov)</h3>
@@ -415,6 +444,7 @@ docker compose restart smart-oneg</code></pre>
       <p><strong>Why there is a short pause between steps.</strong> After each step the arrows are briefly disabled, for your pre-roll seconds plus a settle buffer of about 6 seconds (so roughly 11 seconds with the default). Every step actually drives your lights, and a slow hub or a scene that touches many devices needs a moment to finish adjusting. The pause lets one action play out fully before you can jump to the next, so steps do not stack up and flood the hub.</p>
 
       <h2 id="guarding">Guarding your own automations</h2>
+      <p>This is the mirror image of <a href="#webhooks">webhooks</a>: there, SmartOneg calls out to another system on its schedule; here, another system asks SmartOneg whether it's Shabbos before acting on its own.</p>
       <p>SmartOneg drives the lights <em>you</em> put on its schedule, but it can also act as a Shabbos/Yom&nbsp;Tov <strong>gatekeeper</strong> for the rest of your smart home. <code>GET /api/oneg</code> answers whether Shabbos or Yom Tov is active, live, with no login required (one Oneg covers both Shabbos and Yom&nbsp;Tov):</p>
       <pre><code>curl http://YOUR-SMARTONEG:1836/api/oneg
 

@@ -3,7 +3,7 @@ import { el, clear, mount, toast, modal, field, checkRow, select, pollWhileMount
 import { icon } from '../icons.js';
 import { sortableList } from '../components/sortable.js';
 
-const SOURCE_LABEL = { lutron: 'Lutron', hubitat: 'Hubitat', virtual: 'Manual', ecobee: 'Ecobee', homeassistant: 'Home Assistant', homebridge: 'Homebridge', matter: 'Matter', envisalink: 'EnvisaLink' };
+const SOURCE_LABEL = { lutron: 'Lutron', hubitat: 'Hubitat', virtual: 'Manual', ecobee: 'Ecobee', homeassistant: 'Home Assistant', homebridge: 'Homebridge', matter: 'Matter', envisalink: 'EnvisaLink', webhook: 'Webhook' };
 const isThermostat = (z) => z.kind === 'thermostat';
 // Flashing (a quick reminder blink) only makes sense for lights/dimmers, not
 // plugs, fans, fridges, shades, or thermostats.
@@ -11,12 +11,12 @@ const isLight = (z) => !z.kind;
 
 // Device kinds: control is always on/off + a 0-100 level; kind only affects the
 // icon and the wording (a shade's level is "% open", a fan's is speed).
-const KIND_ICON = { thermostat: 'thermometer', shade: 'blinds', fan: 'fan', outlet: 'plug', fridge: 'fridge', alarm: 'shield', bypass: 'lock', automation: 'play', lock: 'lock', vacuum: 'vacuum' };
+const KIND_ICON = { thermostat: 'thermometer', shade: 'blinds', fan: 'fan', outlet: 'plug', fridge: 'fridge', alarm: 'shield', bypass: 'lock', automation: 'play', lock: 'lock', vacuum: 'vacuum', webhook: 'globe' };
 const kindIcon = (z) => KIND_ICON[z.kind] ?? 'bulb';
 // compact pill labels, the verbose forms live in the edit dialog's
 // KIND_OPTIONS; long pills wrap the badge row into a sparse mess at the
 // minimum card width
-const KIND_LABEL = { thermostat: 'Thermostat', shade: 'Shade', fan: 'Fan', outlet: 'Smart plug', fridge: 'Fridge', alarm: 'Alarm', bypass: 'Zone bypass', automation: 'Automation', lock: 'Lock', vacuum: 'Vacuum' };
+const KIND_LABEL = { thermostat: 'Thermostat', shade: 'Shade', fan: 'Fan', outlet: 'Smart plug', fridge: 'Fridge', alarm: 'Alarm', bypass: 'Zone bypass', automation: 'Automation', lock: 'Lock', vacuum: 'Vacuum', webhook: 'Webhook' };
 // 'On/Off' not 'On/Off switch': at the minimum card width the extra word
 // pushed the badge row 9px past the content box, cascading all the pills
 // into three sparse wrapped rows
@@ -318,13 +318,38 @@ function deviceRow(z, state, refresh, { animate = false } = {}) {
 
   // State pill: dimmers show On/Off (the slider shows the %); shades Open/Closed;
   // thermostats their hold temperature in the chosen unit.
-  const pillText = thermo ? (thermoHolding ? `Hold ${fToDisplay(level, unit)}°${unit}` : 'Program')
-    : isShade ? (on ? 'Open' : 'Closed')
-      : (z.dimmable ? (on ? 'On' : 'Off') : fmtState(z, level));
+  // A webhook holds no state at all, so an On/Off pill would be a lie — it has
+  // nothing to be on or off. Same for the kind pill: the source badge already
+  // says "Webhook", so repeating it just pads the row.
+  const pillText = z.kind === 'webhook' ? null
+    : thermo ? (thermoHolding ? `Hold ${fToDisplay(level, unit)}°${unit}` : 'Program')
+      : isShade ? (on ? 'Open' : 'Closed')
+        : (z.dimmable ? (on ? 'On' : 'Off') : fmtState(z, level));
+
+  // A webhook holds no state, so there is nothing to toggle: pick one of its
+  // named calls and fire it. Same "Test" endpoint the editor uses, so what you
+  // try here is byte-identical to what a rule will send.
+  const webhookCalls = z.kind === 'webhook' ? (z.webhook?.calls ?? []) : [];
+  const webhookPick = webhookCalls.length
+    ? select(webhookCalls.map((c) => [c.id, c.name || c.id]), webhookCalls[0].id, () => {}, 'select !w-auto !py-1.5 !text-sm')
+    : null;
+  const webhookCtl = z.kind === 'webhook' && el('div', { class: 'flex items-center gap-2 shrink-0' },
+    webhookPick ?? el('span', { class: 'hint' }, 'No calls configured'),
+    webhookPick && el('button', {
+      class: 'btn btn-sm shrink-0', title: 'Send this call now',
+      onclick: async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          const r = await api.post(`/api/zones/${z.id}/webhook/test`, { callId: webhookPick.value });
+          toast(`Called ${webhookCalls.find((c) => c.id === webhookPick.value)?.name} · HTTP ${r.status} in ${r.ms}ms`, 'success');
+        } catch (err) { toast(err.message, 'error'); } finally { btn.disabled = false; }
+      },
+    }, icon('globe', 'w-4 h-4'), 'Send'));
 
   // the action button keeps its full label (Turn on/off, Open/Close, Run, …),
   // no toggle switch, so it always says what pressing it does
-  const actionBtn = thermo
+  const actionBtn = webhookCtl || (thermo
     ? el('button', {
       class: 'btn-secondary btn-sm shrink-0', disabled: pending,
       title: thermoHolding ? 'Release the hold, thermostat follows its own program' : 'Hold at this temperature',
@@ -370,7 +395,7 @@ function deviceRow(z, state, refresh, { animate = false } = {}) {
         : z.kind === 'bypass' ? (on ? 'Restore' : 'Bypass')
           : z.kind === 'lock' ? (on ? 'Unlock' : 'Lock')
             : z.kind === 'vacuum' ? (on ? 'Dock' : 'Start')
-              : isShade ? (on ? 'Close' : 'Open') : (on ? 'Turn off' : 'Turn on'));
+              : isShade ? (on ? 'Close' : 'Open') : (on ? 'Turn off' : 'Turn on')));
 
   const flashBtn = isLight(z) && el('button', {
     class: 'btn-secondary btn-sm !px-2.5 shrink-0', title: 'Flash device',
@@ -406,9 +431,11 @@ function deviceRow(z, state, refresh, { animate = false } = {}) {
       el('div', { class: 'mt-1 space-y-2' },
         // pills sit ABOVE the buttons/controls
         el('div', { class: 'flex flex-wrap items-center gap-1.5' },
-          el('span', { class: `${on ? 'badge-on' : 'badge-off'} ${animate ? 'value-flash' : ''}` }, pillText),
+          pillText && el('span', { class: `${on ? 'badge-on' : 'badge-off'} ${animate ? 'value-flash' : ''}` }, pillText),
           el('span', { class: 'badge-info' }, SOURCE_LABEL[z.source ?? 'lutron']),
-          el('span', { class: 'badge-off' }, kindLabel(z)),
+          // skip the kind pill when it just repeats the source (a webhook's
+          // source and kind are both "Webhook")
+          kindLabel(z) !== SOURCE_LABEL[z.source ?? 'lutron'] && el('span', { class: 'badge-off' }, kindLabel(z)),
           z.enforce && el('span', { class: 'badge-on' }, icon('lock', 'w-3.5 h-3.5'), 'Child Lock'),
           vacUncontrollable && el('span', { class: 'badge-warn', title: 'This vacuum doesn’t expose start/dock to Home Assistant' }, 'No remote control'),
           z.latch?.active && el('button', {
@@ -449,6 +476,10 @@ function groupByArea(zones, roomOrder = []) {
 }
 
 function editDevice(z, refresh, settings, allZones = []) {
+  // A webhook device is nothing but its calls + auth — none of the fields
+  // below (room, device type, dimmer, Child Lock) mean anything for it, so it
+  // gets its own editor instead of a hidden-row variant of this one.
+  if (z.kind === 'webhook') return webhookEditor(z, refresh);
   let m; // the modal handle, so the Child Lock note can close it before navigating
   const name = el('input', { class: 'input', value: z.friendlyName ?? '' });
   // Room is a styled combobox: pick an existing room from the list, or type a
@@ -601,6 +632,134 @@ function editDevice(z, refresh, settings, allZones = []) {
   });
 }
 
+/**
+ * Webhook device editor — used for both "add" and "edit".
+ *
+ * A webhook holds NAMED CALLS (pick one from a rule or scene), not an on/off
+ * level, so this is a small repeater of calls plus device-wide auth. Every
+ * call gets a Test button: a bad URL has to fail here, at a desk, not as a
+ * dead action mid-Shabbos.
+ */
+function webhookEditor(existing, refresh) {
+  const zone = existing ?? null;
+  const wh = zone?.webhook ?? { calls: [], auth: { kind: 'none' }, headers: [], timeoutMs: 10000 };
+  const name = el('input', { class: 'input', placeholder: 'Device', value: zone?.friendlyName ?? '' });
+  const timeout = el('input', { class: 'input', type: 'number', min: '1', max: '60', value: String(Math.round((wh.timeoutMs ?? 10000) / 1000)) });
+
+  // ── device-wide auth ──
+  const authKind = select(
+    [['none', 'No authentication'], ['bearer', 'Bearer token'], ['basic', 'Username + password'], ['header', 'Custom header']],
+    wh.auth?.kind ?? 'none', () => syncAuth(), 'select',
+  );
+  const token = el('input', { class: 'input', type: 'password', placeholder: 'Token', value: wh.auth?.token ?? '' });
+  const user = el('input', { class: 'input', placeholder: 'Username', value: wh.auth?.username ?? '' });
+  const pass = el('input', { class: 'input', type: 'password', placeholder: 'Password', value: wh.auth?.password ?? '' });
+  const hName = el('input', { class: 'input', placeholder: 'Header name, e.g. X-Api-Key', value: wh.auth?.headerName ?? '' });
+  const hValue = el('input', { class: 'input', type: 'password', placeholder: 'Header value', value: wh.auth?.headerValue ?? '' });
+  const rowBearer = el('div', { class: 'hidden' }, field('Token', token));
+  const rowBasic = el('div', { class: 'hidden space-y-2' }, field('Username', user), field('Password', pass));
+  const rowHeader = el('div', { class: 'hidden space-y-2' }, field('Header name', hName), field('Header value', hValue));
+  const syncAuth = () => {
+    rowBearer.classList.toggle('hidden', authKind.value !== 'bearer');
+    rowBasic.classList.toggle('hidden', authKind.value !== 'basic');
+    rowHeader.classList.toggle('hidden', authKind.value !== 'header');
+  };
+  syncAuth();
+
+  // ── the calls repeater ──
+  const callsBox = el('div', { class: 'space-y-3' });
+  const calls = [];
+  const readAuth = () => ({
+    kind: authKind.value,
+    ...(authKind.value === 'bearer' ? { token: token.value } : {}),
+    ...(authKind.value === 'basic' ? { username: user.value, password: pass.value } : {}),
+    ...(authKind.value === 'header' ? { headerName: hName.value, headerValue: hValue.value } : {}),
+  });
+  const readWebhook = () => ({
+    timeoutMs: Math.min(60, Math.max(1, Number(timeout.value) || 10)) * 1000,
+    auth: readAuth(),
+    headers: [],
+    calls: calls.filter((c) => !c.removed).map((c) => ({
+      id: c.id, name: c.name.value.trim(), method: c.method.value,
+      url: c.url.value.trim(), contentType: 'application/json', body: c.body.value, headers: [],
+    })),
+  });
+
+  const addCall = (c = {}) => {
+    const entry = {
+      id: c.id ?? null, removed: false,
+      name: el('input', { class: 'input', placeholder: `Device Call Type ${calls.length + 1}`, value: c.name ?? '' }),
+      method: select([['POST', 'POST'], ['GET', 'GET'], ['PUT', 'PUT'], ['PATCH', 'PATCH'], ['DELETE', 'DELETE']], c.method ?? 'POST', () => {}, 'select !w-auto'),
+      url: el('input', { class: 'input', placeholder: 'https://…', value: c.url ?? '' }),
+      body: el('textarea', { class: 'input font-mono !text-[13px]', rows: '2', placeholder: '{"on": true}' }),
+    };
+    entry.body.value = c.body ?? '';
+    const status = el('span', { class: 'hint' });
+    const testBtn = el('button', {
+      class: 'btn-secondary btn-sm', onclick: async () => {
+        testBtn.disabled = true;
+        status.textContent = 'Sending…';
+        try {
+          const r = await api.post(`/api/zones/${zone?.id ?? 0}/webhook/test`, {
+            name: name.value, webhook: readWebhook(),
+            call: { name: entry.name.value, method: entry.method.value, url: entry.url.value.trim(), body: entry.body.value, contentType: 'application/json' },
+          });
+          status.textContent = `HTTP ${r.status} in ${r.ms}ms`;
+          status.className = 'hint text-emerald-600 dark:text-emerald-400';
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = 'hint text-rose-600 dark:text-rose-400';
+        } finally { testBtn.disabled = false; }
+      },
+    }, icon('zap', 'w-4 h-4'), 'Test');
+    const card = el('div', { class: 'card !p-3 space-y-2 relative' },
+      // pinned to the card's own top-right corner, and rose like every other
+      // destructive control in the app (see the rule editor's delete button)
+      el('button', {
+        class: 'icon-btn absolute top-2 right-2 text-rose-500 hover:!text-rose-600', title: 'Remove this call',
+        onclick: () => { entry.removed = true; card.remove(); },
+      }, icon('trash', 'w-4 h-4')),
+      el('div', { class: 'pr-10' }, field('Call name', entry.name)),
+      el('div', { class: 'flex items-end gap-2' },
+        el('div', { class: 'shrink-0' }, field('Method', entry.method)),
+        el('div', { class: 'flex-1 min-w-0' }, field('URL', entry.url))),
+      field('Body (optional)', entry.body),
+      el('div', { class: 'flex items-center gap-2' }, testBtn, status));
+    calls.push(entry);
+    callsBox.append(card);
+  };
+  for (const c of wh.calls ?? []) addCall(c);
+  if (!(wh.calls ?? []).length) addCall();
+
+  modal({
+    title: zone ? 'Edit webhook' : 'Add a webhook',
+    stickyFooter: true, saveOnCtrlS: true,
+    body: el('div', { class: 'space-y-4' },
+      el('p', { class: 'hint' }, 'A webhook device holds one or more named calls. Rules and scenes pick a call by name, the same way a thermostat rule picks a mode. Nothing is ever called twice: a webhook fires once at its scheduled time, and is never re-sent on a restart or reconnect.'),
+      field('Device name', name),
+      el('div', {}, el('div', { class: 'label' }, 'Calls'), callsBox,
+        el('button', { class: 'btn-secondary btn-sm mt-2', onclick: () => addCall() }, icon('plus', 'w-4 h-4'), 'Add another call')),
+      field('Authentication', authKind), rowBearer, rowBasic, rowHeader,
+      field('Timeout (seconds)', timeout, 'How long to wait for a response before giving up.')),
+    confirmText: zone ? 'Save' : 'Add device',
+    onConfirm: async () => {
+      if (!name.value.trim()) { toast('Name required', 'warn'); return false; }
+      const webhook = readWebhook();
+      if (!webhook.calls.length) { toast('Add at least one call', 'warn'); return false; }
+      try {
+        if (zone) await api.put(`/api/zones/${zone.id}/webhook`, { name: name.value, webhook });
+        else await api.post('/api/zones/webhook', { name: name.value, webhook });
+        toast(zone ? 'Webhook saved' : 'Webhook added', 'success');
+        refresh();
+      } catch (err) { toast(err.message, 'error'); return false; }
+    },
+  });
+}
+
+function webhookFlow(_settings, refresh) {
+  webhookEditor(null, refresh);
+}
+
 function renameRoom(from, refresh) {
   const input = el('input', { class: 'input', value: from });
   modal({
@@ -675,6 +834,8 @@ export function addDeviceChooser(settings, refresh) {
       desc: settings.matter?.enabled ? 'Pair a Matter device with its code, then import it' : 'Enable it in Settings first' },
     { key: 'ecobee', img: '/icons/ecobee-icon.png', title: 'Ecobee thermostat (cloud)',
       desc: 'Native cloud API. Recommended instead: pair to Hubitat/Home Assistant (local is more reliable on Shabbos)' },
+    { key: 'webhook', icon: 'globe', title: 'Webhook',
+      desc: 'Call your own URLs from rules and scenes (anything Smart Oneg doesn’t support natively)' },
     { key: 'manual', icon: 'plus', title: 'Manual device', desc: 'A virtual device (plan schedules without hardware)' },
   ];
   const m = modal({
@@ -682,7 +843,7 @@ export function addDeviceChooser(settings, refresh) {
     body: el('div', { class: 'space-y-2' },
       options.map((o) => el('button', {
         class: 'w-full text-left card !p-3 hover:border-accent-400 dark:hover:border-accent-500 transition-colors flex items-center gap-3.5',
-        onclick: () => { m.close(); ({ lutron: lutronFlow, hubitat: hubitatFlow, homeassistant: homeAssistantFlow, homebridge: homebridgeFlow, matter: matterFlow, ecobee: ecobeeFlow, manual: manualFlow })[o.key](settings, refresh); },
+        onclick: () => { m.close(); ({ lutron: lutronFlow, hubitat: hubitatFlow, homeassistant: homeAssistantFlow, homebridge: homebridgeFlow, matter: matterFlow, ecobee: ecobeeFlow, webhook: webhookFlow, manual: manualFlow })[o.key](settings, refresh); },
       },
         el('span', { class: 'text-accent-600 dark:text-accent-400 shrink-0' },
           o.img ? el('img', { src: o.img, alt: '', class: `w-6 h-6 object-contain ${o.key === 'homebridge' ? 'scale-[1.15]' : ''}` }) : icon(o.icon, 'w-6 h-6')),

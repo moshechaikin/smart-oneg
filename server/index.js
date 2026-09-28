@@ -11,6 +11,7 @@ import { MockBridge } from './lutron/MockBridge.js';
 import { DeviceBus } from './devices/DeviceBus.js';
 import { HubitatProvider } from './devices/HubitatProvider.js';
 import { VirtualProvider } from './devices/VirtualProvider.js';
+import { WebhookProvider } from './devices/WebhookProvider.js';
 import { EcobeeProvider } from './devices/EcobeeProvider.js';
 import { HomeAssistantProvider } from './devices/HomeAssistantProvider.js';
 import { HomebridgeProvider } from './devices/HomebridgeProvider.js';
@@ -164,6 +165,9 @@ async function main() {
     if (c.matter?.enabled) devices.register('matter', new MatterProvider({ dataDir, logger: logger.child({ mod: 'matter' }) }));
     if (c.envisalink?.enabled) devices.register('envisalink', new EnvisalinkProvider({ ...c.envisalink, logger: logger.child({ mod: 'envisalink' }) }));
     devices.register('virtual', new VirtualProvider());
+    // Always registered: a webhook device needs no bridge and no settings
+    // toggle — the device itself carries everything it needs.
+    devices.register('webhook', new WebhookProvider({ configStore, logger: logger.child({ mod: 'webhook' }) }));
   };
   registerProviders(cfg);
 
