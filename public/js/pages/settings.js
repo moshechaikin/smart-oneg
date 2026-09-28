@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { el, clear, mount, toast, modal, field, checkRow, select, jsonInput, pageHeader, restartApp, fmtDateTime, todayISO, localISO, copyText, splitDownload, testModeSteps, setNavGuard } from '../ui.js';
+import { el, clear, mount, toast, modal, field, checkRow, select, jsonInput, pageHeader, restartApp, fmtDateTime, todayISO, localISO, copyText, splitDownload, testModeSteps, setNavGuard, renderNotes } from '../ui.js';
 import { icon } from '../icons.js';
 
 // Unsaved-changes tracking for the whole settings page. Any edit to a control
@@ -868,7 +868,7 @@ function buildUpdatesCard(s) {
         el('div', {}, el('span', { class: 'text-stone-500' }, 'Installed: '), el('b', {}, v?.current ?? '—')),
         el('div', {}, el('span', { class: 'text-stone-500' }, 'Latest: '), el('b', {}, v?.latest ?? '—')),
         el('span', { class: up ? 'badge-on' : 'badge-off' }, up ? 'Update available' : 'Up to date')),
-      up && v?.notes && el('div', { class: 'mt-3 rounded-xl bg-stone-50 dark:bg-stone-800/60 p-3 text-[14px] whitespace-pre-wrap' }, v.notes),
+      up && v?.notes && el('div', { class: 'mt-3 rounded-xl bg-stone-50 dark:bg-stone-800/60 p-3 text-[14px]' }, renderNotes(v.notes)),
       el('div', { class: 'mt-4 flex flex-wrap gap-2.5 items-center' },
         el('button', {
           class: 'btn-secondary btn-sm',

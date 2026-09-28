@@ -31,6 +31,64 @@ export function mount(node, ...children) {
   return node;
 }
 
+/**
+ * Render the small Markdown subset our release notes actually use: `##`/`###`
+ * headings, `-` bullets, `**bold**`, `*italic*` and `` `code` ``.
+ *
+ * Builds real DOM nodes rather than assigning innerHTML ON PURPOSE. These notes
+ * are fetched over the network (smartoneg.com/version.json), so treating them
+ * as markup would make anyone who can serve or tamper with that file able to
+ * inject script into the app. Everything here lands as text content.
+ *
+ * Anything it doesn't recognize falls through as a plain paragraph, so an
+ * unsupported construct degrades to readable text instead of disappearing.
+ */
+function inlineMarkdown(text) {
+  const out = [];
+  // ** before * so bold isn't eaten as two italics; `code` is independent
+  const re = /\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*/g;
+  let last = 0; let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if (m[1] !== undefined) out.push(el('strong', {}, m[1]));
+    else if (m[2] !== undefined) out.push(el('code', { class: 'px-1 py-0.5 rounded bg-stone-200/70 dark:bg-stone-700/70 text-[0.92em]' }, m[2]));
+    else out.push(el('em', {}, m[3]));
+    last = re.lastIndex;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+export function renderNotes(text) {
+  const frag = document.createDocumentFragment();
+  let list = null;
+  const flushList = () => { if (list) { frag.append(list); list = null; } };
+  for (const raw of String(text ?? '').split('\n')) {
+    const line = raw.trim();
+    if (!line) { flushList(); continue; }
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      flushList();
+      // the notes' top heading repeats the version shown right above the box
+      const cls = heading[1].length <= 2
+        ? 'font-semibold text-[1.05em] mt-3 mb-1'
+        : 'font-semibold mt-2.5 mb-0.5';
+      frag.append(el('div', { class: cls }, ...inlineMarkdown(heading[2])));
+      continue;
+    }
+    const bullet = /^[-*]\s+(.*)$/.exec(line);
+    if (bullet) {
+      if (!list) list = el('ul', { class: 'list-disc pl-5 space-y-1' });
+      list.append(el('li', {}, ...inlineMarkdown(bullet[1])));
+      continue;
+    }
+    flushList();
+    frag.append(el('p', { class: 'mt-1.5' }, ...inlineMarkdown(line)));
+  }
+  flushList();
+  return frag;
+}
+
 /** Toasts: fixed top-center pills with icon. Pass { ms } for a longer stay. */
 export function toast(message, kind = 'info', { ms = 3600 } = {}) {
   const styles = {

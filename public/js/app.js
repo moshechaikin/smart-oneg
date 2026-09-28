@@ -1,5 +1,5 @@
 import { api, onUnauthorized } from './api.js';
-import { el, clear, mount, modal, toast, testModeSteps, navGuard, fmtAwayWindow } from './ui.js';
+import { el, clear, mount, modal, toast, testModeSteps, navGuard, fmtAwayWindow, renderNotes } from './ui.js';
 import { icon } from './icons.js';
 import { dashboardPage } from './pages/dashboard.js';
 import { calendarPage } from './pages/calendar.js';
@@ -152,7 +152,7 @@ function aboutModal() {
           el('div', { class: 'text-[15px] mt-0.5' }, link('https://smartoneg.com', 'smartoneg.com')))),
       healthCache?.update?.updateAvailable && el('div', { class: 'rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-3.5 text-[15px]' },
         el('div', { class: 'font-semibold flex items-center gap-2 text-emerald-700 dark:text-emerald-300' }, icon('download', 'w-4.5 h-4.5'), `Update available, ${healthCache.update.latest}`),
-        healthCache.update.notes && el('div', { class: 'hint mt-1 whitespace-pre-wrap' }, healthCache.update.notes),
+        healthCache.update.notes && el('div', { class: 'hint mt-1' }, renderNotes(healthCache.update.notes)),
         el('a', { href: '#/settings', class: 'btn-secondary btn-sm mt-2 inline-flex', onclick: () => { localStorage.setItem('settings-tab', 'system'); document.getElementById('modal-root').replaceChildren(); } }, 'Go to Settings to update')),
       el('div', { class: 'flex flex-wrap gap-2.5' },
         linkBtn('https://github.com/moshechaikin/smart-oneg', 'github', 'GitHub'),
