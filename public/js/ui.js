@@ -59,6 +59,29 @@ function inlineMarkdown(text) {
   return out;
 }
 
+/**
+ * One-line gist of a release-notes blob, for the About dialog. The full notes
+ * are a changelog — rendering them inside a modal buries the version and the
+ * update button under a wall of text — so summarize to the section headings
+ * ("Webhooks (new) · Fixes · Away mode") and leave the detail to Settings.
+ *
+ * Falls back to the first bullet's bold lead-in, then to the first prose line,
+ * so notes written without headings still say something useful.
+ */
+export function notesSummary(text, max = 5) {
+  const lines = String(text ?? '').split('\n').map((l) => l.trim());
+  const strip = (t) => t.replace(/[*`]/g, '').trim();
+  const sections = lines.filter((l) => /^#{3,6}\s+/.test(l)).map((l) => strip(l.replace(/^#+\s+/, '')));
+  if (sections.length) {
+    return sections.slice(0, max).join(' · ') + (sections.length > max ? ' …' : '');
+  }
+  const first = lines.find((l) => l && !/^#/.test(l));
+  if (!first) return '';
+  const lead = /^[-*]\s+\*\*([^*]+)\*\*/.exec(first);
+  const t = lead ? strip(lead[1]) : strip(first.replace(/^[-*]\s+/, ''));
+  return t.length > 120 ? `${t.slice(0, 117)}…` : t;
+}
+
 export function renderNotes(text) {
   const frag = document.createDocumentFragment();
   let list = null;
