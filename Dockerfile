@@ -1,5 +1,16 @@
-# Stage 1: install prod deps + build CSS
-FROM node:22-alpine AS build
+# Stage 1: install prod deps + build CSS.
+#
+# Pinned to BUILDPLATFORM (the builder's own arch), NOT the target arch. Nothing
+# this stage produces is architecture-specific: every production dependency is
+# pure JS, and the only native binaries in the tree (tailwind oxide, lightningcss,
+# rollup, esbuild) are devDependencies that `npm prune --omit=dev` strips below.
+#
+# Without this, a multi-arch build runs `npm ci` for the non-native arch under
+# QEMU emulation, which intermittently dies with "uncaught target signal 4
+# (Illegal instruction)" — the crash depends on what V8 JITs and which CPU the
+# runner lands on, so it fails on some releases and not others. Building once,
+# natively, removes the emulation entirely.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
