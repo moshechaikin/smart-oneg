@@ -333,6 +333,11 @@ export class TimelineCompiler {
         // legacy rules stored seconds (2 = once, 4 = twice); new rules store times
         for (const zone of zones) actions.push({ at: atMs, type: 'flash', zone, times: a.times ?? (a.seconds >= 4 ? 2 : 1), source });
         break;
+      case 'callWebhook':
+        // one NAMED call on a webhook device — the thermostat-preset shape
+        // (pick a value from this device's list), not an on/off level
+        for (const zone of zones) actions.push({ at: atMs, type: 'callWebhook', zone, callId: a.callId, source });
+        break;
       case 'sceneStart':
       case 'sceneEnd': {
         // a deleted/broken scene must never take down the whole compile
@@ -349,7 +354,8 @@ export class TimelineCompiler {
           // mode, or a plain level
           const at = atMs + idx * SCENE_STAGGER_MS;
           const src = { ...source, sceneId: a.sceneId, scenePhase: a.type };
-          if (sa.flash) actions.push({ at, type: 'flash', zone: sa.zone, times: sa.flash, source: src });
+          if (sa.callId != null) actions.push({ at, type: 'callWebhook', zone: sa.zone, callId: sa.callId, source: src });
+          else if (sa.flash) actions.push({ at, type: 'flash', zone: sa.zone, times: sa.flash, source: src });
           else if (sa.preset != null) actions.push({ at, type: 'setPreset', zone: sa.zone, preset: sa.preset, source: src });
           else if (sa.hvacMode != null) actions.push({ at, type: 'setHvacMode', zone: sa.zone, hvacMode: sa.hvacMode, source: src });
           else actions.push({ at, type: 'setLevel', zone: sa.zone, level: sa.level, fadeSec: sa.fadeSec ?? 0,
@@ -411,7 +417,7 @@ function dedupeActions(actions) {
     const key = [
       a.zone, a.type, a.at,
       a.level ?? '', a.fadeSec ?? '', a.kelvin ?? '', JSON.stringify(a.rgb ?? null),
-      a.enabled ?? '', a.preset ?? '', a.hvacMode ?? '', a.times ?? '',
+      a.enabled ?? '', a.preset ?? '', a.hvacMode ?? '', a.times ?? '', a.callId ?? '',
     ].join('|');
     if (seen.has(key)) continue;
     seen.add(key);

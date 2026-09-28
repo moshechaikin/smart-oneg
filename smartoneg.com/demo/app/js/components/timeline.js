@@ -191,13 +191,17 @@ export function timelineView(actions, {
 
   const HVAC_LABEL = { heat: 'Heat', cool: 'Cool', heat_cool: 'Heat / Cool', auto: 'Auto', off: 'Off', dry: 'Dry', fan_only: 'Fan only' };
   const modeLabel = (m) => (m ?? '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  const stateBadge = (zone, level, type, times, enabled, mode) => el('span', {
-    class: ['flash', 'setAutomation', 'setPreset', 'setHvacMode'].includes(type) || level > 0 ? 'badge-on' : 'badge-off',
+  // A webhook action names the CALL it fires — like a thermostat preset names
+  // the mode. Falls back to the raw id if the call was deleted from the device.
+  const callLabel = (zone, callId) => zone?.webhook?.calls?.find((c) => c.id === callId)?.name ?? callId ?? 'call';
+  const stateBadge = (zone, level, type, times, enabled, mode, callId) => el('span', {
+    class: ['flash', 'setAutomation', 'setPreset', 'setHvacMode', 'callWebhook'].includes(type) || level > 0 ? 'badge-on' : 'badge-off',
   }, type === 'flash' ? (times >= 2 ? 'flash twice' : 'flash once')
-    : type === 'setAutomation' ? (enabled ? 'Enable' : 'Disable')
-      : type === 'setPreset' ? modeLabel(mode)
-        : type === 'setHvacMode' ? (HVAC_LABEL[mode] ?? modeLabel(mode))
-          : fmtState(zone, level));
+    : type === 'callWebhook' ? callLabel(zone, callId)
+      : type === 'setAutomation' ? (enabled ? 'Enable' : 'Disable')
+        : type === 'setPreset' ? modeLabel(mode)
+          : type === 'setHvacMode' ? (HVAC_LABEL[mode] ?? modeLabel(mode))
+            : fmtState(zone, level));
 
   // a small "3000K" chip with a dot that fades warm→cool, shown next to an
   // "on" badge when a rule/scene sets the light's white color temperature
@@ -247,11 +251,11 @@ export function timelineView(actions, {
           const rowEl = (a) => (a._overridden
             ? el('div', { class: 'flex items-center gap-2 text-[15px]' },
               el('span', { class: 'line-through opacity-60' }, zoneName(a.zone)),
-              el('span', { class: 'opacity-60' }, stateBadge(zoneOf(a.zone), a.level, a.type, a.times, a.enabled, a.preset ?? a.hvacMode)),
+              el('span', { class: 'opacity-60' }, stateBadge(zoneOf(a.zone), a.level, a.type, a.times, a.enabled, a.preset ?? a.hvacMode, a.callId)),
               el('span', { class: 'italic text-xs text-sky-700 dark:text-sky-300' }, 'overridden by guest'))
             : el('div', { class: 'flex items-center gap-2.5 text-[15px]' },
               el('span', {}, zoneName(a.zone)),
-              stateBadge(zoneOf(a.zone), a.level, a.type, a.times, a.enabled, a.preset ?? a.hvacMode),
+              stateBadge(zoneOf(a.zone), a.level, a.type, a.times, a.enabled, a.preset ?? a.hvacMode, a.callId),
               ctOf(a)));
           return el('div', { class: 'mt-1.5 w-fit max-w-full rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/50 p-3.5' },
             el('div', { class: 'flex items-center gap-2 font-semibold text-[15px] mb-2' },
@@ -265,11 +269,11 @@ export function timelineView(actions, {
         g.actions.map((action) => (action._overridden
           ? el('div', { class: 'mt-1 flex items-center gap-2 flex-wrap text-[15px]' },
             el('span', { class: 'font-medium line-through opacity-60' }, zoneName(action.zone)),
-            el('span', { class: 'opacity-60' }, stateBadge(zoneOf(action.zone), action.level, action.type, action.times, action.enabled, action.preset ?? action.hvacMode)),
+            el('span', { class: 'opacity-60' }, stateBadge(zoneOf(action.zone), action.level, action.type, action.times, action.enabled, action.preset ?? action.hvacMode, action.callId)),
             el('span', { class: 'italic text-xs text-sky-700 dark:text-sky-300' }, 'overridden by guest'))
           : el('div', { class: 'mt-1 flex items-center gap-2.5 flex-wrap text-[15px]' },
             el('span', { class: 'font-medium' }, zoneName(action.zone)),
-            stateBadge(zoneOf(action.zone), action.level, action.type, action.times, action.enabled, action.preset ?? action.hvacMode),
+            stateBadge(zoneOf(action.zone), action.level, action.type, action.times, action.enabled, action.preset ?? action.hvacMode, action.callId),
             ctOf(action),
             rowNote(action) && el('span', { class: 'hint' }, rowNote(action)),
             inConflict(action) && conflictMark(),

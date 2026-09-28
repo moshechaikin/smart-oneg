@@ -187,6 +187,17 @@ export function fmtDateRange(from, to) {
 }
 
 /**
+ * Away mode's window for the banner/card. An open-ended window (`to == null`,
+ * the vacation-home case) must not render as a bare start date — that reads
+ * like a one-day window — so it says so explicitly.
+ */
+export function fmtAwayWindow(from, to) {
+  if (!from) return '';
+  const d = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return to ? fmtDateRange(from, to) : `from ${d(from)}, until you turn it off`;
+}
+
+/**
  * LOCAL calendar date as YYYY-MM-DD. Never use `Date.toISOString().slice(0,10)`
  * for "today", that's UTC, so late at night it rolls to tomorrow's date and
  * the calendar highlights the wrong day. Always build from local getters.

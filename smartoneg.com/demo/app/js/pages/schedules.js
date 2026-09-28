@@ -69,6 +69,11 @@ const HOLIDAY_GROUPS = [
  *  so other pages (the Dashboard) can deep-link straight to a situation. */
 export const groupKeyForDayType = (dayType) => HOLIDAY_GROUPS.find((g) => g.days.includes(dayType))?.key;
 
+/** Display name for a day type ('sukkos-1' → 'Sukkos I'), in the chosen
+ *  holiday-name style. Falls back to Ashkenazi, then the raw key. */
+export const dayTypeLabel = (dayType, locale = 'ashkenazi') => DAY_LABELS[locale]?.[dayType]
+  ?? DAY_LABELS.ashkenazi[dayType] ?? dayType;
+
 const VARIANT_LABELS = {
   default: 'Regular',
   'on-shabbos': 'Falls on Shabbos',
@@ -314,16 +319,19 @@ async function render(container) {
   const [meta, schedules, zones, scenes, settings, allClusters] = await Promise.all([
     api.get('/api/schedules/meta'), api.get('/api/schedules'), api.get('/api/zones'), api.get('/api/scenes'),
     api.get('/api/settings'),
-    api.get(`/api/calendar?from=${todayISO()}&to=${localISO(new Date(Date.now() + 500 * 86400000))}`).catch(() => []),
+    // Starts 21 days BACK, not today: a festival's holiday view shows its whole
+    // span, and mid-Sukkos/Pesach the earlier clusters (Sukkos I-II) are already
+    // in the past. `upcoming` below still trims to what's ahead.
+    api.get(`/api/calendar?from=${localISO(new Date(Date.now() - 21 * 86400000))}&to=${localISO(new Date(Date.now() + 500 * 86400000))}`).catch(() => []),
   ]);
   // Match the dashboard: an occurrence stops being "next" the moment its
   // havdalah passes, not at midnight. The calendar starts at today's date, so
   // without this a just-ended Shabbos would stay listed as next until 00:00.
   const upcoming = allClusters.filter((c) => new Date(c.endsAt).getTime() > Date.now());
   const locale = settings.display?.locale ?? 'ashkenazi';
-  const dayLabel = (dt) => DAY_LABELS[locale]?.[dt] ?? DAY_LABELS.ashkenazi[dt] ?? dt;
+  const dayLabel = (dt) => dayTypeLabel(dt, locale);
   const groupName = (key) => GROUP_NAMES[locale]?.[key] ?? GROUP_NAMES.ashkenazi[key];
-  const ctx = { meta, schedules, zones, scenes, upcoming, container, dayLabel, groupName, guestOn: Boolean(settings.guestMode?.enabled), awayMode: settings.awayMode };
+  const ctx = { meta, schedules, zones, scenes, upcoming, allClusters, container, dayLabel, groupName, guestOn: Boolean(settings.guestMode?.enabled), awayMode: settings.awayMode };
   // only an open editor can hold unsaved changes; keep the GLOBAL nav guard in
   // sync so leaving via ANY nav item (Devices, etc.) prompts — not just the
   // Schedules tab (which is special-cased via schedulesNavReset)
@@ -351,7 +359,7 @@ let lastViewKey = null;
 /* ── Yom Tov overview: mini calendar + zmanim + its days + full timeline ──── */
 
 async function renderHolidayOverview(ctx) {
-  const { meta, schedules, upcoming, container, dayLabel, groupName, guestOn } = ctx;
+  const { meta, schedules, upcoming, allClusters, container, dayLabel, groupName, guestOn } = ctx;
   const g = HOLIDAY_GROUPS.find((gg) => gg.key === state.groupKey);
   const days = g.days.filter((d) => meta.dayTypes.includes(d));
   const ruleCount = (dayType) => Object.values(schedules[dayType] ?? {}).reduce((n, s) => n + (s?.rules?.length ?? 0), 0);
@@ -366,13 +374,28 @@ async function renderHolidayOverview(ctx) {
   // with Chol Hamoed between), but weekly Shabbos / yearly RH must not pull in
   // the following occurrence. Start at the first cluster with a group day, then
   // keep adding adjacent clusters until every group day-type is covered.
+  //
+  // Anchored on the occurrence that hasn't fully ended, and expanded in BOTH
+  // directions: mid-Sukkos, the anchor is Shmini Atzeres/Simchas Torah, and
+  // Sukkos I-II is already behind us — the view must still show the whole
+  // festival, not just the part that's left. Walking backward only pulls in a
+  // cluster that contributes a day-type this group hasn't covered yet, so a
+  // weekly Shabbos never drags in last week's.
   const clusters = [];
-  const firstIdx = upcoming.findIndex((c) => c.days.some((d) => days.includes(d.dayType)));
-  if (firstIdx >= 0) {
-    clusters.push(upcoming[firstIdx]);
-    const seen = new Set(upcoming[firstIdx].days.map((d) => d.dayType).filter((dt) => days.includes(dt)));
-    for (let i = firstIdx + 1; i < upcoming.length && seen.size < days.length; i++) {
-      const c = upcoming[i];
+  const hasGroupDay = (c) => c.days.some((d) => days.includes(d.dayType));
+  const anchorIdx = allClusters.findIndex((c) => hasGroupDay(c) && new Date(c.endsAt).getTime() > Date.now());
+  if (anchorIdx >= 0) {
+    clusters.push(allClusters[anchorIdx]);
+    const seen = new Set(allClusters[anchorIdx].days.map((d) => d.dayType).filter((dt) => days.includes(dt)));
+    for (let i = anchorIdx - 1; i >= 0 && seen.size < days.length; i--) {
+      const c = allClusters[i];
+      const fresh = c.days.filter((d) => days.includes(d.dayType) && !seen.has(d.dayType));
+      const gapDays = (new Date(clusters[0].startsAt) - new Date(c.endsAt)) / 86400000;
+      if (fresh.length && gapDays < 15) { clusters.unshift(c); for (const d of fresh) seen.add(d.dayType); }
+      else break;
+    }
+    for (let i = anchorIdx + 1; i < allClusters.length && seen.size < days.length; i++) {
+      const c = allClusters[i];
       const fresh = c.days.filter((d) => days.includes(d.dayType) && !seen.has(d.dayType));
       const gapDays = (new Date(c.startsAt) - new Date(clusters[clusters.length - 1].endsAt)) / 86400000;
       if (fresh.length && gapDays < 15) { clusters.push(c); for (const d of fresh) seen.add(d.dayType); }
@@ -411,7 +434,8 @@ async function renderHolidayOverview(ctx) {
     first
       ? el('div', { class: 'card' },
         el('div', { class: 'section-title !mb-3' },
-          `Next: ${holidaySpanLabel(first.days[0].date, last.days[last.days.length - 1].date)}`),
+          // "Next" is wrong once we're inside it (mid-Sukkos, Chol Hamoed)
+          `${new Date(first.startsAt).getTime() <= Date.now() ? 'Now' : 'Next'}: ${holidaySpanLabel(first.days[0].date, last.days[last.days.length - 1].date)}`),
         // mini calendar of the whole holiday span (its clusters + chol hamoed between)
         holidayMiniCalendar(clusters, first.erevDate, last.days[last.days.length - 1].date, heByDate,
           (day) => go({ view: 'edit', dayType: day.dayType, variant: day.variant ?? 'default', from: 'holiday', groupKey: g.key })),
@@ -525,7 +549,12 @@ function holidayMiniCalendar(clusters, startISO, endISO, heByDate = new Map(), o
     const inSpan = d >= startISO && d <= endISO;
     const label = assur.get(d);
     const erev = erevInfo.get(d);
-    const chol = inSpan && !label && !erev;
+    // Chol Hamoed comes from the Hebrew-date data, same as the full calendar
+    // page — NOT just "a gap inside the cluster span". The span starts at the
+    // next cluster's erev, so once Sukkos/Pesach I-II have passed, every Chol
+    // Hamoed day sits BEFORE it and an inSpan-only test left them blank.
+    // inSpan is kept as a fallback for any span-internal non-assur day.
+    const chol = !label && !erev && (Boolean(heByDate.get(d)?.cholHamoed) || inSpan);
     let cls = 'border-transparent text-stone-300 dark:text-stone-700';
     if (label) cls = 'bg-accent-100/70 border-accent-300 text-accent-800 dark:bg-accent-600/15 dark:border-accent-600/40 dark:text-accent-300';
     else if (erev) cls = 'bg-accent-50 border-accent-200 border-dashed text-accent-700 dark:bg-accent-600/[0.07] dark:border-accent-600/40 dark:text-accent-400';
@@ -1826,6 +1855,11 @@ function describeRule(rule, zones, scenes) {
   } else if (a.type === 'setAutomation') {
     const targets = a.zones?.length > 1 ? `${a.zones.length} automations` : zname(a.zone);
     what = `${a.enabled ? 'Enable' : 'Disable'} ${targets}`;
+  } else if (a.type === 'callWebhook') {
+    const z0 = zones.find((z) => z.id === a.zone);
+    const call = z0?.webhook?.calls?.find((c) => c.id === a.callId)?.name ?? a.callId ?? 'a call';
+    const targets = a.zones?.length > 1 ? `${a.zones.length} webhooks` : zname(a.zone);
+    what = `Call ${targets} → ${call}`;
   } else if (a.type === 'setPreset') {
     what = `Set ${zname(a.zone)} to ${presetLabel(a.preset ?? '')}`;
   } else if (a.type === 'setHvacMode') {
@@ -1874,9 +1908,12 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
   // device picker (where their only option was "Run" with no way back).
   const autos = zones.filter((z) => z.kind === 'automation');
   const thermostats = zones.filter((z) => z.kind === 'thermostat');
-  // "plain" = the on/off/dim family (lights, shades, plugs, locks, …); thermostats
-  // and automations each get their own action + device set so they never mix
-  const plainZones = zones.filter((z) => z.kind !== 'automation' && z.kind !== 'thermostat');
+  // Webhooks hold named CALLS, not a level — same shape as a thermostat mode,
+  // so they get their own action + device set and a call sub-select.
+  const webhooks = zones.filter((z) => z.kind === 'webhook');
+  // "plain" = the on/off/dim family (lights, shades, plugs, locks, …); thermostats,
+  // automations and webhooks each get their own action + device set so they never mix
+  const plainZones = zones.filter((z) => z.kind !== 'automation' && z.kind !== 'thermostat' && z.kind !== 'webhook');
   // The WHAT dropdown always offers the full set of actions (Turn on, Thermostat,
   // Run automation, …); the CHOSEN action decides which devices the picker shows.
   // `runMode`/`thermoMode` track the current family even before a device is picked,
@@ -1897,6 +1934,7 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
     // specific action (hold / resume / mode / heat-cool) — cleaner than
     // scattering four verbs in the top-level dropdown
     if (thermoMode || isThermo()) return 'thermostat';
+    if (rule.action.type === 'callWebhook') return 'callWebhook';
     if (rule.action.type === 'flash') return 'flash';
     return rule.action.level > 0 ? 'on' : 'off';
   };
@@ -1969,6 +2007,7 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
       ...(thermostats.length ? [['thermostat', 'Thermostat']] : []),
       ...(scenes.length ? [['sceneStart', 'Start scene'], ['sceneEnd', 'End scene']] : []),
       ...(autos.length ? [['runAutomation', 'Run automation'], ['enableAutomation', 'Enable automation'], ['disableAutomation', 'Disable automation']] : []),
+      ...(webhooks.length ? [['callWebhook', 'Call webhook']] : []),
     ];
 
     mount(clear(root),
@@ -2010,6 +2049,13 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
               rule.action = { type: 'setLevel', ...kept(thermostats), level: rule.action.level > 0 && rule.action.level <= 95 ? rule.action.level : 70, fadeSec: 0 };
               redraw(); return;
             }
+            if (v === 'callWebhook') {
+              runMode = false; thermoMode = false;
+              const keepW = kept(webhooks);
+              const dev0 = webhooks.find((z) => z.id === (keepW.zone ?? keepW.zones?.[0]));
+              rule.action = { type: 'callWebhook', ...keepW, callId: rule.action.callId ?? dev0?.webhook?.calls?.[0]?.id ?? null };
+              redraw(); return;
+            }
             runMode = false; thermoMode = false;
             if (v === 'sceneStart' || v === 'sceneEnd') { rule.action = { type: v, sceneId: rule.action.sceneId ?? scenes[0]?.id }; redraw(); return; }
             const keep = kept(plainZones);
@@ -2025,7 +2071,8 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
             // the full name still shows in the open dropdown
             ? select(scenes.map((s) => [s.id, s.name ?? s.id]), rule.action.sceneId, (v) => { rule.action.sceneId = v; }, 'select w-full min-w-0 truncate')
             : multiDeviceSelect(
-              uiAction() === 'thermostat' ? thermostats : runMode ? autos : uiAction() === 'flash' ? flashZones : plainZones,
+              uiAction() === 'thermostat' ? thermostats : runMode ? autos
+                : uiAction() === 'callWebhook' ? webhooks : uiAction() === 'flash' ? flashZones : plainZones,
               selectedZones, (sel) => {
                 // keep the panel OPEN while picking several devices: only a
                 // primary-device change that alters the controls forces a redraw
@@ -2131,9 +2178,25 @@ function ruleEditor(rule, zones, scenes, onDelete, onDuplicate, inhOpts = {}) {
           uiAction() === 'flash' && el('span', { class: 'inline-flex items-center gap-1.5' },
             select([['1', 'once'], ['2', 'twice']],
               String(rule.action.times ?? (rule.action.seconds >= 4 ? 2 : 1)), // legacy rules stored seconds 2/4
-              (v) => { rule.action.times = Number(v); delete rule.action.seconds; }, 'select !w-auto'))),
+              (v) => { rule.action.times = Number(v); delete rule.action.seconds; }, 'select !w-auto')),
+          // which named call to send — the same shape as the thermostat mode
+          // sub-select above. Listed per DEVICE, so switching device relists.
+          uiAction() === 'callWebhook' && dev?.webhook?.calls?.length
+            && el('span', { class: 'inline-flex items-center gap-1.5' }, 'send',
+              select(dev.webhook.calls.map((c) => [c.id, c.name || c.id]),
+                rule.action.callId ?? dev.webhook.calls[0].id,
+                (v) => { rule.action.callId = v; }, 'select !w-auto'))),
         uiAction() === 'flash' && el('div', { class: 'sm:col-start-2 hint -mt-1' },
           'A quick reminder blink, e.g. flash the lights before candle lighting.'),
+        uiAction() === 'callWebhook' && el('div', { class: 'sm:col-start-2 hint -mt-1' },
+          'Sends this webhook’s call once, at the scheduled time. It is never re-sent on a restart or reconnect.'),
+        // a rule pointing at a call that was since deleted from the device would
+        // fail at run time — say so while it can still be fixed
+        uiAction() === 'callWebhook' && dev && rule.action.callId
+          && !dev.webhook?.calls?.some((c) => c.id === rule.action.callId)
+          && el('div', { class: 'sm:col-start-2 -mt-1 text-[13px] text-rose-600 dark:text-rose-400 flex items-start gap-1.5' },
+            icon('alert', 'w-4 h-4 shrink-0 mt-0.5'),
+            el('span', {}, 'That call no longer exists on this device. Pick another, or this rule will fail when it runs.')),
         // flashing a plug toggles whatever it powers — safe for a lamp, risky
         // for appliances/motors the app can't see, so warn when a plug is picked
         uiAction() === 'flash' && selectedZones().some((id) => zones.find((z) => z.id === id)?.kind === 'outlet')
@@ -2395,6 +2458,12 @@ export function findRuleContradictions(rules, scenes = []) {
     if (a.type === 'setLevel' || a.type === 'flash') {
       const targets = (a.zones?.length ? a.zones : [a.zone]).filter((z) => z != null);
       if (targets.length === 0) errors.push({ rule: r, message: `${name(r)}: choose a device for this rule before saving.` });
+    } else if (a.type === 'callWebhook') {
+      const targets = (a.zones?.length ? a.zones : [a.zone]).filter((z) => z != null);
+      if (targets.length === 0) errors.push({ rule: r, message: `${name(r)}: choose a webhook device for this rule before saving.` });
+      // a call id is REQUIRED — there is deliberately no "first call" fallback
+      // at run time, so an unset one would just fail when it fires
+      else if (!a.callId) errors.push({ rule: r, message: `${name(r)}: choose which call this rule should send before saving.` });
     } else if ((a.type === 'sceneStart' || a.type === 'sceneEnd') && a.sceneId == null) {
       errors.push({ rule: r, message: `${name(r)}: choose a scene for this rule before saving.` });
     } else if (a.type === 'sceneEnd' && !sceneEndDoesSomething(a.sceneId, scenes)) {
